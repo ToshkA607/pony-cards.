@@ -8,17 +8,29 @@ function preloadImage(src) {
  if(!src)return Promise.resolve(false);
  if(decodedImageCache.has(src))return decodedImageCache.get(src);
  const task=new Promise(resolve=>{
-  const image=new Image();
-  image.decoding='async';
-  image.onload=async()=>{try{if(image.decode)await image.decode();}catch(_){}resolve(true);};
-  image.onerror=()=>resolve(false);
+  const image=new Image();let settled=false;
+  const finish=ok=>{if(settled)return;settled=true;const ready=!!ok&&image.naturalWidth>0;if(!ready)decodedImageCache.delete(src);resolve(ready);};
+  image.decoding='async';image.onload=async()=>{try{if(image.decode)await image.decode();}catch(_){}finish(true);};
+  image.onerror=()=>finish(false);
   image.src=src;
-  if(image.complete&&image.naturalWidth)resolve(true);
+  if(image.complete&&image.naturalWidth)finish(true);
  });
  decodedImageCache.set(src,task);
  return task;
 }
-async function loadAssetManifest(){try{const r=await fetch('/assets/user-content/asset-manifest.json?v=2.53.0-desktop-viewport-fix');if(r.ok)assetManifest=await r.json();}catch(e){console.warn('Asset manifest not loaded; using default artwork.',e);}void preloadImage('/assets/ui/card-back.png');Object.values(assetManifest.packs||{}).forEach(src=>void preloadImage(src));if(assetManifest.backgrounds?.home)document.documentElement.style.setProperty('--home-background-image',`url(\"${assetManifest.backgrounds.home}\")`);if(game?.sky){game.sky.src=assetManifest.backgrounds?.flight||'/assets/sky-world-4k.jpg';if(!selectedSkin||selectedSkin==='twilight'){game.ponyOpen.src=assetManifest.characters?.open||'/assets/characters/twilight-flight-open.png?v=2.31';game.ponyFold.src=assetManifest.characters?.folded||'/assets/characters/twilight-flight-folded.png?v=2.31';}}const menuPony=document.querySelector('.home-pony img');if(menuPony&&assetManifest.characters?.menu)menuPony.src=assetManifest.characters.menu;const featuredPack=document.querySelector('.pack-preview img');if(featuredPack&&assetManifest.packs?.basic)featuredPack.src=assetManifest.packs.basic;}
+async function loadAssetManifest(){try{const r=await fetch('/assets/user-content/asset-manifest.json?v=2.54.0-startup-preload');if(r.ok)assetManifest=await r.json();}catch(e){console.warn('Asset manifest not loaded; using default artwork.',e);}if(assetManifest.backgrounds?.home)document.documentElement.style.setProperty('--home-background-image',`url(\"${assetManifest.backgrounds.home}\")`);if(game?.sky){game.sky.src=assetManifest.backgrounds?.flight||'/assets/sky-world-4k.jpg';if(!selectedSkin||selectedSkin==='twilight'){game.ponyOpen.src=assetManifest.characters?.open||'/assets/characters/twilight-flight-open.png?v=2.31';game.ponyFold.src=assetManifest.characters?.folded||'/assets/characters/twilight-flight-folded.png?v=2.31';}}const menuPony=document.querySelector('.home-pony img');if(menuPony&&assetManifest.characters?.menu)menuPony.src=assetManifest.characters.menu;const featuredPack=document.querySelector('.pack-preview img');if(featuredPack&&assetManifest.packs?.basic)featuredPack.src=assetManifest.packs.basic;}
+async function preloadAllGameAssets(){
+ const urls=new Set(['/assets/ui/logo.png','/assets/ui/heart.png','/assets/ui/coin.png','/assets/ui/card-back.png','/assets/pack-sky.svg','/assets/characters/chrysalis-boss.png','/assets/characters/nightmare-moon.png','/assets/characters/discord-boss.png','/assets/backgrounds/level-1.png','/assets/backgrounds/level-2.png','/assets/backgrounds/level-3.png']);
+ Object.values(assetManifest.backgrounds||{}).forEach(u=>u&&urls.add(u));
+ Object.values(assetManifest.characters||{}).forEach(u=>u&&urls.add(u));
+ Object.values(assetManifest.cards||{}).forEach(u=>u&&urls.add(u));
+ Object.values(assetManifest.packs||{}).forEach(u=>u&&urls.add(u));
+ Object.values(assetManifest.effects||{}).forEach(u=>u&&urls.add(u));
+ (skinOptions||[]).forEach(s=>[s.menu,s.flight,s.folded].forEach(u=>u&&urls.add(u)));
+ document.querySelectorAll('img[src]').forEach(img=>{if(img.getAttribute('src'))urls.add(img.getAttribute('src'));});
+ const queue=[...urls];
+ for(let i=0;i<queue.length;i+=4){await Promise.all(queue.slice(i,i+4).map(preloadImage));await new Promise(resolve=>setTimeout(resolve,0));}
+}
 // Level soundtracks are separate from the existing menu music. The menu soundtrack
 // and its synthesizer remain untouched; only campaign gameplay selects tracks 1–3.
 const levelSoundtrack = {
@@ -157,8 +169,7 @@ async function openPack(id){
   soundFX.pack();
   const result=await api('/api/shop/open',{method:'POST',body:JSON.stringify({packId:id})});
   const revealImages=result.opened.map(c=>assetManifest.cards?.[c.id]||c.image_url||c.imageUrl||c.art_url||c.artUrl||'');
-  void preloadImage('/assets/ui/card-back.png');
-  revealImages.forEach(src=>{if(src)void preloadImage(src);});
+  const cardArtReady=await Promise.all(revealImages.map(src=>src?preloadImage(src):Promise.resolve(false)));
   gameState=result.state;updateHeader();renderShop();renderCollection();
   const openedRoot=$('opened-cards');openedRoot.innerHTML='';
   result.opened.forEach((c,i)=>{
@@ -166,7 +177,7 @@ async function openPack(id){
    card.className=`opened-card rarity-${rarityClass(c.rarity)}${c.pityTriggered?' pity-triggered':''}`;
    const art=document.createElement('div');art.className='opened-card-art';
    const image=document.createElement('img');
-   image.className='pack-card-image';
+   image.className='pack-card-image';image.decoding='async';image.loading='eager';
    image.src='/assets/ui/card-back.png';
    image.alt='Рубашка карты';
    image.onerror=()=>{image.onerror=null;image.src='';image.classList.add('pack-card-fallback');};
@@ -181,10 +192,12 @@ async function openPack(id){
    card.append(art,meta);openedRoot.append(card);
    const revealImageUrl=assetManifest.cards?.[c.id]||c.image_url||c.imageUrl||c.art_url||c.artUrl||'';
    setTimeout(async()=>{
-    if(revealImageUrl)await preloadImage(revealImageUrl);
+    let artReady=!!(revealImageUrl&&cardArtReady[i]);
+    if(!artReady&&revealImageUrl)artReady=await preloadImage(revealImageUrl);
+    if(artReady){image.src=revealImageUrl;image.alt=c.name||'Артефакт';try{if(image.decode)await image.decode();}catch(_){artReady=false;}}
     card.classList.add('is-flipping');
     setTimeout(()=>{
-     if(revealImageUrl){image.src=revealImageUrl;image.alt=c.name||'Артефакт';image.classList.remove('pack-card-fallback');}
+     if(artReady){image.classList.remove('pack-card-fallback');}
      else{image.removeAttribute('src');image.classList.add('pack-card-fallback');}
      card.classList.add('is-revealed');
     },360);
@@ -353,25 +366,32 @@ const game={canvas:$('game-canvas'),selectedLevel:1,levelConfig:campaignLevels[0
     // Moon Rift is weighted a little more often so players can actually learn its pattern.
     const nightmarePatterns=[0,1,2,3,4,5];
     const levelOnePatterns=[0,1,2,3,4]; // Все пять атак из HTML-референса, включая ягоду.
-    const patternCount=this.selectedLevel===1?levelOnePatterns.length:this.selectedLevel===2?6:19;
-    let pattern=this.selectedLevel===3?Math.floor(Math.random()*patternCount):(this.selectedLevel===2?nightmarePatterns[Math.floor(Math.random()*nightmarePatterns.length)]:levelOnePatterns[Math.floor(Math.random()*levelOnePatterns.length)]);
-    if(pattern===this.originalBossAttackIndex)pattern=(pattern+1+Math.floor(Math.random()*(patternCount-1)))%patternCount;this.originalBossAttackIndex=pattern;
-    if(this.selectedLevel===1){this.spawnChrysalisAttack(pattern,spawnVolley);this.originalBossAttackTimer=.95+Math.random()*.35;}
-    else if(this.selectedLevel===2){this.spawnNightmareAttack(pattern,spawnVolley);this.originalBossAttackTimer=pattern===1?3.25+Math.random()*.55:pattern===2?1.65+Math.random()*.45:pattern===3?1.9+Math.random()*.3:1.2+Math.random()*.35;}
+    const activeMoonPillars=(this.bossHazards||[]).some(q=>q.type==='moonPillars'&&q.x+q.width>0);
+    let choices=this.selectedLevel===1?levelOnePatterns:(this.selectedLevel===2?nightmarePatterns:Array.from({length:19},(_,i)=>i));
+    // During Moon Pillars, suppress lasers and Moon Rift so the passage stays readable.
+    if(activeMoonPillars){
+     if(this.selectedLevel===2)choices=choices.filter(v=>v!==0&&v!==2);
+     if(this.selectedLevel===3)choices=choices.filter(v=>v!==4&&v!==13&&v!==15);
+    }
+    if(!choices.length)choices=this.selectedLevel===2?[1,3,4,5]:[1,2,3,5,6,7,14,16,17,18];
+    let pattern=choices[Math.floor(Math.random()*choices.length)];
+    if(pattern===this.originalBossAttackIndex&&choices.length>1)pattern=choices[(choices.indexOf(pattern)+1+Math.floor(Math.random()*(choices.length-1)))%choices.length];this.originalBossAttackIndex=pattern;
+    if(this.selectedLevel===1){this.spawnChrysalisAttack(pattern,spawnVolley);this.originalBossAttackTimer=.82+Math.random()*.25;}
+    else if(this.selectedLevel===2){this.spawnNightmareAttack(pattern,spawnVolley);this.originalBossAttackTimer=pattern===1?1.8+Math.random()*.25:pattern===2?.85+Math.random()*.12:pattern===3?.9+Math.random()*.12:.58+Math.random()*.12;}
     else if(this.selectedLevel===3&&pattern>=8&&pattern<=12){this.spawnChrysalisAttack(pattern-8,spawnVolley);this.originalBossAttackTimer=.95+Math.random()*.35;}
     else if(this.selectedLevel===3&&pattern>=13){this.spawnNightmareAttack(pattern-13,spawnVolley);this.originalBossAttackTimer=.95+Math.random()*.35;}
     else if(pattern===0){
      // Acid: three-shot fan, then a delayed pair that closes the safe gap.
-     soundFX.attackAcid();const count=[1,2,3][Math.floor(Math.random()*3)],spread=count===1?[0]:count===2?[-42,42]:[-86,0,86];spawnVolley(1,spread.map(y=>({x:-25,y})),.88+Math.random()*.18);
+     soundFX.attackAcid();const count=[2,3,4][Math.floor(Math.random()*3)],spread=count===2?[-42,42]:count===3?[-86,0,86]:[-120,-40,40,120];spawnVolley(1,spread.map(y=>({x:-25,y})),.92+Math.random()*.18);
      if(count===3&&Math.random()<.55)setTimeout(()=>{if(this.running&&this.bossMode)spawnVolley(1,[{x:-5,y:-48},{x:-5,y:48}],1.04);},336);
      this.originalBossAttackTimer=1.45+Math.random()*.65;
     }else if(pattern===1){
      // Dark matter: wide five-shot fan.
-     soundFX.attackDark();const count=[1,3,5][Math.floor(Math.random()*3)],spread=count===1?[0]:count===3?[-70,0,70]:[-125,-62,0,62,125];spawnVolley(2,spread.map(y=>({x:-20,y})),.82+Math.random()*.22);
+     soundFX.attackDark();const count=[3,5,7][Math.floor(Math.random()*3)],spread=count===3?[-70,0,70]:count===5?[-125,-62,0,62,125]:[-175,-116,-58,0,58,116,175];spawnVolley(2,spread.map(y=>({x:-20,y})),.88+Math.random()*.22);
      this.originalBossAttackTimer=1.45+Math.random()*.7;
     }else if(pattern===2){
      // Turquoise lightning: staggered three-lane burst.
-     soundFX.attackLightning();const count=[1,2,3][Math.floor(Math.random()*3)],spread=count===1?[0]:count===2?[-58,58]:[-105,0,105];spawnVolley(3,spread.map(y=>({x:-35,y})),.98+Math.random()*.2);
+     soundFX.attackLightning();const count=[2,3,4][Math.floor(Math.random()*3)],spread=count===2?[-58,58]:count===3?[-105,0,105]:[-145,-48,48,145];spawnVolley(3,spread.map(y=>({x:-35,y})),1.02+Math.random()*.2);
      if(count===3&&Math.random()<.5)setTimeout(()=>{if(this.running&&this.bossMode)spawnVolley(3,[{x:-15,y:-55},{x:-15,y:55}],1.0);},240);
      this.originalBossAttackTimer=1.35+Math.random()*.65;
     }else if(pattern===3){
@@ -388,23 +408,24 @@ const game={canvas:$('game-canvas'),selectedLevel:1,levelConfig:campaignLevels[0
      this.originalBossAttackTimer=this.selectedLevel===3?1.45:2.24;
     }else if(pattern===5){
      // Alternating diagonal double-wave: two quick fans with a shifted centre.
-     soundFX.attackVolley();const count=[1,3,5][Math.floor(Math.random()*3)],base=[-105,-52,0,52,105],chosen=count===1?[0]:count===3?[0,2,4]:[0,1,2,3,4],spread=chosen.map(i=>({x:(i%2?28:-28),y:base[i]+(Math.random()-.5)*24}));
+     soundFX.attackVolley();const count=[3,5,7][Math.floor(Math.random()*3)],base=[-160,-105,-52,0,52,105,160],chosen=count===3?[0,3,6]:count===5?[0,1,3,5,6]:[0,1,2,3,4,5,6],spread=chosen.map(i=>({x:(i%2?28:-28),y:base[i]+(Math.random()-.5)*24}));
      spawnVolley(Math.random()<.5?1:3,spread, .9+Math.random()*.2);
      if(Math.random()<.58)setTimeout(()=>{if(this.running&&this.bossMode)spawnVolley(2,[-80,-20,40,100].sort(()=>Math.random()-.5).slice(0,1+Math.floor(Math.random()*4)).map(y=>({x:20,y:y+(Math.random()-.5)*18})),.88+Math.random()*.18);},416);
      this.originalBossAttackTimer=1.5+Math.random()*.6;
     }else if(pattern===6){
      // Dense but readable seven-lane sweep; alternating acid and lightning.
-     soundFX.attackLightning();const count=this.selectedLevel===3?(Math.random()<.62?10:7):[3,5,7][Math.floor(Math.random()*3)],base=this.selectedLevel===3?[-190,-150,-112,-74,-37,0,37,74,112,150,190]:[-150,-100,-50,0,50,100,150],lanes=base.sort(()=>Math.random()-.5).slice(0,count).sort((a,b)=>a-b).map((y,i)=>({x:(i%2?18:-18),y:y+(Math.random()-.5)*16}));
+     soundFX.attackLightning();const count=this.selectedLevel===3?(Math.random()<.62?12:9):[3,5,7][Math.floor(Math.random()*3)],base=this.selectedLevel===3?[-220,-180,-140,-100,-60,-20,20,60,100,140,180,220]:[-150,-100,-50,0,50,100,150],lanes=base.sort(()=>Math.random()-.5).slice(0,count).sort((a,b)=>a-b).map((y,i)=>({x:(i%2?18:-18),y:y+(Math.random()-.5)*16}));
      spawnVolley(1,lanes,.78+Math.random()*.16);
      if(Math.random()<.45)setTimeout(()=>{if(this.running&&this.bossMode)spawnVolley(3,[-115,-38,38,115].sort(()=>Math.random()-.5).slice(0,1+Math.floor(Math.random()*4)).map(y=>({x:-12,y})),.98+Math.random()*.18);},520);
      this.originalBossAttackTimer=this.selectedLevel===3?1.05+Math.random()*.35:1.55+Math.random()*.6;
     }else{
      // Two staggered aimed bursts: target altitude changes between volleys.
-     soundFX.attackDark();const count=[1,2,4][Math.floor(Math.random()*3)],base=[-72,-24,24,72],first=base.sort(()=>Math.random()-.5).slice(0,count).map(y=>({x:Math.random()*35-18,y:y+(Math.random()-.5)*20}));
+     soundFX.attackDark();const count=[2,3,5][Math.floor(Math.random()*3)],base=[-96,-48,0,48,96],first=base.sort(()=>Math.random()-.5).slice(0,count).map(y=>({x:Math.random()*35-18,y:y+(Math.random()-.5)*20}));
      spawnVolley(2,first,1.0+Math.random()*.22);
      if(Math.random()<.52)setTimeout(()=>{if(this.running&&this.bossMode){const shift=(Math.random()-.5)*120;spawnVolley(1,[-90,-30,30,90].sort(()=>Math.random()-.5).slice(0,1+Math.floor(Math.random()*4)).map(y=>({x:Math.random()*28,y:y+shift})),.86+Math.random()*.14);}},624);
      this.originalBossAttackTimer=1.55+Math.random()*.6;
     }
+    if(this.selectedLevel===3)this.originalBossAttackTimer*=.78;
    }
   }
   fx.projectiles.renderFrame(Math.max(0,Math.min(.1,dt))*60);fx.blackHole.renderFrame();fx.laser.renderFrame();
@@ -433,13 +454,13 @@ const game={canvas:$('game-canvas'),selectedLevel:1,levelConfig:campaignLevels[0
    soundFX.attackAcid();const y=Math.max(90,Math.min(this.h-90,p.y));this.bossHazards.push({type:'toxicCloud',x:Math.max(48,p.x-145),y,age:0,warning:.72,activeFor:3,life:3.72,hit:false,puffs:Array.from({length:60},()=>({ox:(Math.random()-.5)*320,oy:(Math.random()-.5)*60,r:20+Math.random()*35,px:Math.random()*6.28,py:Math.random()*6.28,speed:.02+Math.random()*.03,hue:80+Math.random()*30,delay:Math.random()*40})) ,bubbles:[]});
   }else if(pattern===2){
    // Original SplittingPoisonCore: one core splits 1 -> 2 -> 4 -> 8, retaining momentum.
-   soundFX.attackAcid();const sx=b.x-65,sy=b.y,tx=-this.w*.18,ty=p.y,dx=tx-sx,dy=ty-sy,dist=Math.hypot(dx,dy)||1,speed=390;this.bossHazards.push({type:'splittingCore',x:sx,y:sy,vx:dx/dist*speed,vy:dy/dist*speed,generation:0,age:0,splitAt:.42,life:(sx+this.w*.25)/speed+1.2,r:18,trail:[],spikes:Array.from({length:8},(_,i)=>({a:i*Math.PI/4,spin:(Math.random()-.5)*.2})),hit:false});
+   soundFX.attackAcid();const sx=b.x-65,sy=b.y,tx=-this.w*.18,ty=p.y,dx=tx-sx,dy=ty-sy,dist=Math.hypot(dx,dy)||1,speed=430;this.bossHazards.push({type:'splittingCore',x:sx,y:sy,vx:dx/dist*speed,vy:dy/dist*speed,generation:0,age:0,splitAt:.42,life:(sx+this.w*.25)/speed+1.2,r:18,trail:[],spikes:Array.from({length:8},(_,i)=>({a:i*Math.PI/4,spin:(Math.random()-.5)*.2})),hit:false});
   }else if(pattern===3){
    // Poison berries: short straight thorned green projectiles.
-   soundFX.attackAcid();const count=2+Math.floor(Math.random()*3);for(let i=0;i<count;i++){const y=Math.max(65,Math.min(this.h-65,p.y+(Math.random()-.5)*210));this.bossHazards.push({type:'poisonBerry',x:b.x-65-i*18,y,vx:-(760+Math.random()*120),vy:0,r:17,age:0,life:4,hit:false});}
+   soundFX.attackAcid();const count=3+Math.floor(Math.random()*3);for(let i=0;i<count;i++){const y=Math.max(65,Math.min(this.h-65,p.y+(Math.random()-.5)*210));this.bossHazards.push({type:'poisonBerry',x:b.x-65-i*18,y,vx:-(830+Math.random()*130),vy:0,r:17,age:0,life:4,hit:false});}
   }else if(pattern===4){
    // MiniLaser from the supplied HTML: a straight green beam projectile aimed at the player's current lane.
-   soundFX.attackAcid();const sx=b.x-65,tx=-this.w*.16,dx=tx-sx,speed=920;[-24,24].forEach(offset=>{const sy=Math.max(40,Math.min(this.h-40,b.y+offset));this.bossHazards.push({type:'miniLaser',x:sx,y:sy,vx:-speed,vy:0,angle:Math.PI,age:0,life:Math.abs(dx)/speed+.45,r:8,length:40,trail:[],hit:false});});
+   soundFX.attackAcid();const sx=b.x-65,tx=-this.w*.16,dx=tx-sx,speed=990;[-36,0,36].forEach(offset=>{const sy=Math.max(40,Math.min(this.h-40,b.y+offset));this.bossHazards.push({type:'miniLaser',x:sx,y:sy,vx:-speed,vy:0,angle:Math.PI,age:0,life:Math.abs(dx)/speed+.45,r:8,length:40,trail:[],hit:false});});
   }
  },
  spawnNightmareAttack(pattern,spawnVolley){
@@ -451,18 +472,18 @@ const game={canvas:$('game-canvas'),selectedLevel:1,levelConfig:campaignLevels[0
   }else if(pattern===1){
    // Original three-segment Moon Pillars, two wide passages. Never allow more than two on screen.
    const activePillars=(this.bossHazards||[]).filter(q=>q.type==='moonPillars'&&q.x+q.width>0).length;
-   if(activePillars<2){soundFX.attackDark();const margin=24,midH=56,minGap=Math.min(142,Math.max(112,this.h*.23)),maxGap=Math.min(184,Math.max(minGap,this.h*.29)),gap1H=minGap+Math.random()*(maxGap-minGap),gap2H=minGap+Math.random()*(maxGap-minGap),available=Math.max(70,this.h-margin*2-gap1H-gap2H-midH),topBottom=margin+available*(.25+Math.random()*.28),middleTop=topBottom+gap1H,middleBottom=middleTop+midH,bottomTop=middleBottom+gap2H,speed=192;this.bossHazards.push({type:'moonPillars',x:b.x-b.width*.28,width:100,g1:topBottom,g2:middleBottom,gap1H,gap2H,middleH:midH,vx:-speed,age:0,life:(this.w+300)/speed+1,hit:false,crystals:Array.from({length:8},()=>({side:Math.floor(Math.random()*3),offset:Math.random(),phase:Math.random()*6.28,size:4+Math.random()*6})),particles:[],topBottom,middleTop,middleBottom,bottomTop});}
+   if(activePillars<2){soundFX.attackDark();const margin=24,midH=56,minGap=Math.min(142,Math.max(112,this.h*.23)),maxGap=Math.min(184,Math.max(minGap,this.h*.29)),gap1H=minGap+Math.random()*(maxGap-minGap),gap2H=minGap+Math.random()*(maxGap-minGap),available=Math.max(70,this.h-margin*2-gap1H-gap2H-midH),topBottom=margin+available*(.25+Math.random()*.28),middleTop=topBottom+gap1H,middleBottom=middleTop+midH,bottomTop=middleBottom+gap2H,speed=210;this.bossHazards.push({type:'moonPillars',x:b.x-b.width*.28,width:100,g1:topBottom,g2:middleBottom,gap1H,gap2H,middleH:midH,vx:-speed,age:0,life:(this.w+300)/speed+1,hit:false,crystals:Array.from({length:8},()=>({side:Math.floor(Math.random()*3),offset:Math.random(),phase:Math.random()*6.28,size:4+Math.random()*6})),particles:[],topBottom,middleTop,middleBottom,bottomTop});}
   }else if(pattern===3){
    // Original TornadoSpiral emerges from the boss sprite itself, then flies toward the pony and off-screen.
-   soundFX.attackVolley();const sx=b.x-b.width*.30,sy=b.y+Math.max(-55,Math.min(55,(p.y-b.y)*.22)),tx=-140,ty=p.y,dx=tx-sx,dy=ty-sy,dist=Math.hypot(dx,dy)||1,speed=470;this.bossHazards.push({type:'tornado',x:sx,y:sy,vx:dx/dist*speed,vy:dy/dist*speed,age:0,life:dist/speed+.55,r:26,rotation:0,hit:false,spirals:Array.from({length:8},(_,i)=>({base:i*Math.PI/4,width:.3+Math.random()*.15,hue:200+(i%3)*20,phase:Math.random()*6.28})),particles:Array.from({length:20},()=>({t:Math.random(),angle:Math.random()*6.28,speed:.1+Math.random()*.15,size:2+Math.random()*4,alpha:.4+Math.random()*.4}))});
+   soundFX.attackVolley();const sx=b.x-b.width*.30,sy=b.y+Math.max(-55,Math.min(55,(p.y-b.y)*.22)),tx=-140,ty=p.y,dx=tx-sx,dy=ty-sy,dist=Math.hypot(dx,dy)||1,speed=520;this.bossHazards.push({type:'tornado',x:sx,y:sy,vx:dx/dist*speed,vy:dy/dist*speed,age:0,life:dist/speed+.55,r:26,rotation:0,hit:false,spirals:Array.from({length:8},(_,i)=>({base:i*Math.PI/4,width:.3+Math.random()*.15,hue:200+(i%3)*20,phase:Math.random()*6.28})),particles:Array.from({length:20},()=>({t:Math.random(),angle:Math.random()*6.28,speed:.1+Math.random()*.15,size:2+Math.random()*4,alpha:.4+Math.random()*.4}))});
   }else if(pattern===2){
    // Moon Rift: a moving vertical rift; only the upper and lower lanes are safe.
-   soundFX.attackDark();this.bossHazards.push({type:'moonRift',x:b.x-b.width*.28,width:108,top:this.h*.27,bottom:this.h*.73,vx:-Math.max(420,this.w*.55),age:0,life:(this.w+260)/Math.max(420,this.w*.55)+.2,hit:false,particles:[]});
+   soundFX.attackDark();this.bossHazards.push({type:'moonRift',x:b.x-b.width*.28,width:108,top:this.h*.27,bottom:this.h*.73,vx:-Math.max(470,this.w*.62),age:0,life:(this.w+260)/Math.max(470,this.w*.62)+.2,hit:false,particles:[]});
   }else if(pattern===4||pattern===5){
    // Source demo has two separate moon attacks. Spawn only the selected variant.
    soundFX.attackDark();const variant=pattern===4?1:2,y=Math.max(70,Math.min(this.h-70,p.y+(Math.random()-.5)*130));
-   const sx=b.x-55,tx=-120,speed=variant===1?500:530;
-   [-1,1].forEach((side,index)=>{
+   const sx=b.x-55,tx=-120,speed=variant===1?550:580;
+   [-1,1,-2,2].forEach((side,index)=>{
     const sy=Math.max(40,Math.min(this.h-40,y+(variant===1?-34:48)+side*(28+index*8)));
     const ty=Math.max(35,Math.min(this.h-35,sy+(Math.random()-.5)*70)),dx=tx-sx,dy=ty-sy,dist=Math.hypot(dx,dy)||1;
     this.bossHazards.push({type:'moonCrescent',variant,x:sx-index*18,y:sy,vx:dx/dist*speed,vy:dy/dist*speed,tx,ty,r:variant===1?26:22,age:0,life:4,trail:[],sparkles:Array.from({length:variant===1?10:6},()=>({angle:Math.random()*6.28,dist:25+Math.random()*25,phase:Math.random()*6.28,size:1.5+Math.random()*2.5,speed:.02+Math.random()*.04})),hit:false});
@@ -651,4 +672,12 @@ $('music-volume').addEventListener('input',e=>{const v=e.target.value/100;$('mus
 $('fx-volume').addEventListener('input',e=>{soundFX.master=e.target.value/100;localStorage.setItem('ponyFxVolume',String(soundFX.master));$('fx-volume-value').textContent=e.target.value+'%';$('pause-fx-volume').value=e.target.value;$('pause-fx-value').textContent=e.target.value+'%';});$('pause-music-volume').addEventListener('input',e=>{const v=e.target.value/100;$('pause-music-value').textContent=e.target.value+'%';$('music-volume').value=e.target.value;$('music-volume-value').textContent=e.target.value+'%';levelSoundtrack.setVolume(v);});$('pause-fx-volume').addEventListener('input',e=>{soundFX.master=e.target.value/100;localStorage.setItem('ponyFxVolume',String(soundFX.master));$('pause-fx-value').textContent=e.target.value+'%';$('fx-volume').value=e.target.value;$('fx-volume-value').textContent=e.target.value+'%';});$('music-volume').addEventListener('input',e=>{$('pause-music-volume').value=e.target.value;$('pause-music-value').textContent=e.target.value+'%';});soundFX.updateButton();
 document.addEventListener('click',e=>{if(e.target.closest('button')&&e.target.id!=='sound-all-off'&&e.target.id!=='settings-toggle'){soundFX.unlock();soundFX.ui();}},true);
 function gameInput(e){if(e){e.preventDefault();}if(game.running){game.flap();}else if(game.paused){game.pause(false);}else game.start();}
-game.canvas.addEventListener('pointerdown',gameInput,{passive:false});game.canvas.addEventListener('contextmenu',e=>e.preventDefault());$('start-btn').addEventListener('click',()=>{renderCampaign();go('campaign');});$('endless-mode-btn')?.addEventListener('click',()=>{go('play');requestAnimationFrame(()=>game.start(1,true));});$('boss-practice-btn')?.addEventListener('click',()=>{go('play');requestAnimationFrame(()=>game.start(3,false,true));});document.querySelectorAll('[data-level]').forEach(btn=>btn.addEventListener('click',()=>{if(btn.disabled)return;selectedLevel=Number(btn.dataset.level);go('play');requestAnimationFrame(()=>{try{game.start(selectedLevel);}catch(error){console.error('Не удалось запустить уровень:',error);showToast('Не удалось запустить уровень. Обнови страницу и попробуй ещё раз.');go('campaign');}});}));$('overlay-btn').addEventListener('click',()=>{soundFX.unlock();if(game.paused){game.pause(false);}else{game.bossFinished=false;game.start(game.selectedLevel,!!game.endlessMode,!!game.bossPractice);}});$('overlay-menu-btn')?.addEventListener('click',()=>{levelSoundtrack.stop();game.running=false;game.paused=false;game.bossFinished=false;cancelAnimationFrame(game.raf);$('game-overlay').classList.add('hidden');go('home');});$('pause-btn').addEventListener('click',()=>game.pause());$('exit-game').addEventListener('click',()=>{levelSoundtrack.stop();if(game.running){game.running=false;cancelAnimationFrame(game.raf);}go('home');});document.addEventListener('keydown',e=>{if($('play').classList.contains('active')&&game.bossMode&&(e.code==='Space'||e.code==='ArrowUp'||e.code==='KeyW')){game.flap();e.preventDefault();}else if(e.code==='Space'&&$('play').classList.contains('active'))gameInput(e);if(e.code==='Escape'&&$('play').classList.contains('active')){if(game.running)game.pause(true);else{levelSoundtrack.stop();go('home');}}});window.addEventListener('resize',()=>game.resize());if(window.ResizeObserver){const gameFrame=document.querySelector('.game-frame');if(gameFrame)new ResizeObserver(()=>game.resize()).observe(gameFrame);}(async()=>{try{await loadAssetManifest();await refresh();renderCampaign();renderSkins();applySkin();game.resize();}catch(e){showToast('Не удалось подключиться к серверу. Запусти Spring Boot.');}})();
+game.canvas.addEventListener('pointerdown',gameInput,{passive:false});game.canvas.addEventListener('contextmenu',e=>e.preventDefault());$('start-btn').addEventListener('click',()=>{renderCampaign();go('campaign');});$('endless-mode-btn')?.addEventListener('click',()=>{go('play');requestAnimationFrame(()=>game.start(1,true));});$('boss-practice-btn')?.addEventListener('click',()=>{go('play');requestAnimationFrame(()=>game.start(3,false,true));});document.querySelectorAll('[data-level]').forEach(btn=>btn.addEventListener('click',()=>{if(btn.disabled)return;selectedLevel=Number(btn.dataset.level);go('play');requestAnimationFrame(()=>{try{game.start(selectedLevel);}catch(error){console.error('Не удалось запустить уровень:',error);showToast('Не удалось запустить уровень. Обнови страницу и попробуй ещё раз.');go('campaign');}});}));$('overlay-btn').addEventListener('click',()=>{soundFX.unlock();if(game.paused){game.pause(false);}else{game.bossFinished=false;game.start(game.selectedLevel,!!game.endlessMode,!!game.bossPractice);}});$('overlay-menu-btn')?.addEventListener('click',()=>{levelSoundtrack.stop();game.running=false;game.paused=false;game.bossFinished=false;cancelAnimationFrame(game.raf);$('game-overlay').classList.add('hidden');go('home');});$('pause-btn').addEventListener('click',()=>game.pause());$('exit-game').addEventListener('click',()=>{levelSoundtrack.stop();if(game.running){game.running=false;cancelAnimationFrame(game.raf);}go('home');});document.addEventListener('keydown',e=>{if($('play').classList.contains('active')&&game.bossMode&&(e.code==='Space'||e.code==='ArrowUp'||e.code==='KeyW')){game.flap();e.preventDefault();}else if(e.code==='Space'&&$('play').classList.contains('active'))gameInput(e);if(e.code==='Escape'&&$('play').classList.contains('active')){if(game.running)game.pause(true);else{levelSoundtrack.stop();go('home');}}});window.addEventListener('resize',()=>game.resize());if(window.ResizeObserver){const gameFrame=document.querySelector('.game-frame');if(gameFrame)new ResizeObserver(()=>game.resize()).observe(gameFrame);}(async()=>{
+ const minimumLoaderTime=new Promise(resolve=>setTimeout(resolve,2000));
+ try{await loadAssetManifest();await refresh();renderCampaign();renderSkins();applySkin();game.resize();}
+ catch(e){console.error('Ошибка начальной загрузки:',e);showToast('Не удалось подключиться к серверу. Проверь соединение и обнови страницу.');}
+ await minimumLoaderTime;
+ const loader=$('startup-loader');if(loader){loader.classList.add('startup-loader-hidden');setTimeout(()=>loader.remove(),550);}
+ // Finish decoding all level art, skins and card images after the menu appears.
+ preloadAllGameAssets();
+})();
