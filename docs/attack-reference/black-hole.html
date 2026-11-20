@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Атака "Чёрная дыра"</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050008;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            cursor: crosshair;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        (function() {
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+
+            let width, height;
+            function resize() {
+                width = window.innerWidth;
+                height = window.innerHeight;
+                canvas.width = width;
+                canvas.height = height;
+            }
+            window.addEventListener('resize', resize);
+            resize();
+
+            // ---- Состояние чёрной дыры ----
+            const blackHole = {
+                active: false,
+                x: 0,
+                y: 0,
+                vx: 0,
+                radius: 0,
+                targetRadius: 55,
+                rotation: 0,
+                rotationSpeed: 0.06,
+                life: 0,
+                maxLife: 300,
+                phase: 0,
+                progress: 0,
+                particles: [],
+                spiralPhase: 0,
+                collapseScale: 1,
+                nebulaBlobs: [],
+                innerNebulaBlobs: [],
+                visualRadius: 0,
+                // Глобальное время для анимации туманности
+                nebulaTime: 0
+            };
+
+            // ---- Туманность (внешняя) ----
+            function generateNebulaBlobs(count) {
+                const blobs = [];
+                for (let i = 0; i < count; i++) {
+                    const distFactor = Math.pow(Math.random(), 2.5);
+                    const angle = Math.random() * Math.PI * 2;
+                    const sizeFactor = (1 - distFactor * 0.7) * (0.6 + Math.random() * 0.5);
+                    const brightness = (1 - distFactor * 0.5) * (0.5 + Math.random() * 0.5);
+                    
+                    const colors = [
+                        'rgba(180, 0, 255, ',
+                        'rgba(130, 0, 220, ',
+                        'rgba(90, 0, 170, ',
+                        'rgba(60, 0, 120, ',
+                        'rgba(210, 80, 255, '
+                    ];
+                    const colorBase = colors[Math.floor(Math.random() * colors.length)];
+                    
+                    blobs.push({
+                        baseAngle: angle,
+                        baseDist: distFactor,
+                        sizeFactor: sizeFactor,
+                        brightness: brightness,
+                        colorBase: colorBase,
+                        // Несколько независимых фаз для хаотичного движения
+                        phaseX: Math.random() * Math.PI * 2,
+                        phaseY: Math.random() * Math.PI * 2,
+                        phaseA: Math.random() * Math.PI * 2,
+                        phaseR: Math.random() * Math.PI * 2,
+                        speedX: 0.5 + Math.random() * 1.0,
+                        speedY: 0.5 + Math.random() * 1.0,
+                        speedA: 0.4 + Math.random() * 0.8,
+                        speedR: 0.4 + Math.random() * 0.8,
+                        ampX: 0.3 + Math.random() * 0.5,   // амплитуда дрейфа по X (в долях r)
+                        ampY: 0.3 + Math.random() * 0.5,   // амплитуда дрейфа по Y
+                        ampA: 0.15 + Math.random() * 0.25, // амплитуда по углу
+                        ampR: 0.1 + Math.random() * 0.2    // амплитуда по радиусу
+                    });
+                }
+                return blobs;
+            }
+
+            // ---- Туманность внутри чёрного круга ----
+            function generateInnerNebulaBlobs(count) {
+                const blobs = [];
+                for (let i = 0; i < count; i++) {
+                    const distFactor = Math.pow(Math.random(), 1.5);
+                    const angle = Math.random() * Math.PI * 2;
+                    const sizeFactor = 0.4 + Math.random() * 0.6;
+                    const brightness = 0.3 + Math.random() * 0.5;
+                    
+                    const colors = [
+                        'rgba(120, 0, 200, ',
+                        'rgba(80, 0, 160, ',
+                        'rgba(160, 0, 240, ',
+                        'rgba(50, 0, 100, '
+                    ];
+                    const colorBase = colors[Math.floor(Math.random() * colors.length)];
+                    
+                    blobs.push({
+                        baseAngle: angle,
+                        baseDist: distFactor,
+                        sizeFactor: sizeFactor,
+                        brightness: brightness,
+                        colorBase: colorBase,
+                        phaseX: Math.random() * Math.PI * 2,
+                        phaseY: Math.random() * Math.PI * 2,
+                        phaseA: Math.random() * Math.PI * 2,
+                        phaseR: Math.random() * Math.PI * 2,
+                        speedX: 0.6 + Math.random() * 1.2,
+                        speedY: 0.6 + Math.random() * 1.2,
+                        speedA: 0.5 + Math.random() * 0.9,
+                        speedR: 0.5 + Math.random() * 0.9,
+                        ampX: 0.15 + Math.random() * 0.2,
+                        ampY: 0.15 + Math.random() * 0.2,
+                        ampA: 0.2 + Math.random() * 0.3,
+                        ampR: 0.1 + Math.random() * 0.15
+                    });
+                }
+                return blobs;
+            }
+
+            // ---- Частица-искра ----
+            class Particle {
+                constructor(x, y, angle, speed, life, color, size) {
+                    this.x = x;
+                    this.y = y;
+                    this.vx = Math.cos(angle) * speed;
+                    this.vy = Math.sin(angle) * speed;
+                    this.life = life;
+                    this.maxLife = life;
+                    this.color = color;
+                    this.size = size;
+                    this.decay = 0.96 + Math.random() * 0.03;
+                }
+                update(bh, maxRadius) {
+                    this.x += this.vx;
+                    this.y += this.vy;
+                    this.vx *= this.decay;
+                    this.vy *= this.decay;
+                    if (bh.active) {
+                        const dx = bh.x - this.x;
+                        const dy = bh.y - this.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy) + 1;
+                        const force = 250 / (dist * dist + 50);
+                        this.vx += (dx / dist) * force;
+                        this.vy += (dy / dist) * force;
+                    }
+                    if (maxRadius > 0 && bh.active) {
+                        const dx = this.x - bh.x;
+                        const dy = this.y - bh.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist > maxRadius) {
+                            const k = maxRadius / dist;
+                            this.x = bh.x + dx * k;
+                            this.y = bh.y + dy * k;
+                            this.vx *= 0.5;
+                            this.vy *= 0.5;
+                        }
+                    }
+                    this.life--;
+                    this.size *= 0.98;
+                }
+                draw(ctx) {
+                    const alpha = Math.max(0, this.life / this.maxLife);
+                    ctx.globalAlpha = alpha;
+                    ctx.fillStyle = this.color;
+                    ctx.shadowColor = this.color;
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, Math.max(0.1, this.size), 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // ---- Орбитальная частица ----
+            class OrbitingParticle {
+                constructor(bh, orbitRadius, orbitAngle, orbitSpeed, color, size) {
+                    this.orbitRadius = orbitRadius;
+                    this.orbitAngle = orbitAngle;
+                    this.orbitSpeed = orbitSpeed;
+                    this.color = color;
+                    this.size = size;
+                    this.life = 999999;
+                    this.maxLife = 999999;
+                    this.alpha = 1;
+                    this.decay = 1;
+                }
+                update(bh, maxRadius) {
+                    this.orbitAngle += this.orbitSpeed;
+                    this.orbitRadius *= 0.9985;
+                    
+                    const visualLimit = maxRadius * 0.85;
+                    if (this.orbitRadius > visualLimit) {
+                        this.orbitRadius = visualLimit;
+                    }
+                    
+                    this.x = bh.x + Math.cos(this.orbitAngle) * this.orbitRadius;
+                    this.y = bh.y + Math.sin(this.orbitAngle) * this.orbitRadius;
+                    
+                    if (this.orbitRadius < bh.radius * 1.2) {
+                        this.orbitRadius = bh.radius * (2.0 + Math.random() * 1.5);
+                        if (this.orbitRadius > visualLimit) this.orbitRadius = visualLimit;
+                        this.orbitAngle = Math.random() * Math.PI * 2;
+                    }
+                }
+                draw(ctx) {
+                    ctx.globalAlpha = this.alpha;
+                    ctx.fillStyle = this.color;
+                    ctx.shadowColor = this.color;
+                    ctx.shadowBlur = 12;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            function spawnBlackHole() {
+                blackHole.active = true;
+                blackHole.x = -80;
+                blackHole.y = height / 2;
+                blackHole.vx = 2.4;
+                blackHole.radius = 5;
+                blackHole.targetRadius = 55 + Math.random() * 15;
+                blackHole.rotation = 0;
+                blackHole.rotationSpeed = 0.06 + Math.random() * 0.03;
+                blackHole.life = 0;
+                blackHole.maxLife = 300;
+                blackHole.phase = 1;
+                blackHole.progress = 0;
+                blackHole.spiralPhase = 0;
+                blackHole.collapseScale = 1;
+                blackHole.particles = [];
+                blackHole.nebulaTime = 0;
+                blackHole.nebulaBlobs = generateNebulaBlobs(35);
+                blackHole.innerNebulaBlobs = generateInnerNebulaBlobs(18);
+                blackHole.visualRadius = blackHole.targetRadius * 3.2;
+                
+                const orbColors = ['#ffffff', '#e066ff', '#cc00ff', '#ff88ff', '#9900cc'];
+                for (let i = 0; i < 10; i++) {
+                    const orbR = blackHole.targetRadius * (1.6 + Math.random() * 0.7);
+                    const orbAngle = Math.random() * Math.PI * 2;
+                    const orbSpeed = (0.015 + Math.random() * 0.03) * (Math.random() < 0.5 ? 1 : -1);
+                    const color = orbColors[Math.floor(Math.random() * orbColors.length)];
+                    const size = 1.5 + Math.random() * 2;
+                    blackHole.particles.push(new OrbitingParticle(blackHole, orbR, orbAngle, orbSpeed, color, size));
+                }
+            }
+
+            function spawnBlackHoleParticles() {
+                const bh = blackHole;
+                const colors = ['#1a0033', '#330066', '#660099', '#9900cc', '#cc00ff', '#e066ff', '#ff88ff'];
+                
+                if (Math.random() < 0.4) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const rad = bh.radius * 1.2;
+                    const px = bh.x + Math.cos(angle) * rad;
+                    const py = bh.y + Math.sin(angle) * rad;
+                    const outAngle = angle + (Math.random() - 0.5) * 0.5;
+                    const speed = 1 + Math.random() * 3;
+                    const color = colors[Math.floor(Math.random() * colors.length)];
+                    bh.particles.push(new Particle(px, py, outAngle, speed, 20 + Math.random() * 25, color, 1 + Math.random() * 2));
+                }
+            }
+
+            function updateBlackHole() {
+                const bh = blackHole;
+                if (!bh.active) return;
+
+                bh.rotation += bh.rotationSpeed;
+                bh.spiralPhase += 0.06;
+                // Глобальное время туманности растёт независимо — это ключевое
+                bh.nebulaTime += 0.016;
+
+                if (bh.phase === 1) {
+                    bh.progress = Math.min(1, bh.progress + 0.03);
+                    const t = 1 - Math.pow(1 - bh.progress, 3);
+                    bh.radius = 5 + t * (bh.targetRadius - 5);
+                    bh.x += bh.vx * 0.15;
+                    bh.visualRadius = bh.radius * 3.2;
+                    
+                    if (bh.progress >= 1) {
+                        bh.phase = 2;
+                        bh.progress = 0;
+                        bh.radius = bh.targetRadius;
+                    }
+                } else if (bh.phase === 2) {
+                    bh.x += bh.vx;
+                    bh.life++;
+                    spawnBlackHoleParticles();
+                    
+                    if (bh.x > width * 0.78 || bh.life > bh.maxLife) {
+                        bh.phase = 3;
+                        bh.progress = 0;
+                    }
+                } else if (bh.phase === 3) {
+                    bh.progress = Math.min(1, bh.progress + 0.02);
+                    const t = bh.progress;
+                    bh.collapseScale = 1 - t;
+                    bh.x += bh.vx * (1 - t * 0.8);
+                    bh.rotation += bh.rotationSpeed * (1 + t * 3);
+                    bh.visualRadius = bh.radius * bh.collapseScale * 3.2;
+                    
+                    for (let p of bh.particles) {
+                        if (p instanceof OrbitingParticle) {
+                            p.alpha = Math.max(0, 1 - t * 1.5);
+                        }
+                    }
+                    
+                    if (bh.progress >= 1) {
+                        bh.active = false;
+                        bh.phase = 0;
+                        bh.particles = [];
+                    }
+                }
+
+                for (let i = bh.particles.length - 1; i >= 0; i--) {
+                    bh.particles[i].update(bh, bh.visualRadius);
+                    if (bh.particles[i].life <= 0) {
+                        bh.particles.splice(i, 1);
+                    }
+                }
+            }
+
+            // ---- Спиральный рукав ----
+            function drawSpiralArm(cx, cy, baseR, turns, color, lineWidth, startAngle, alpha) {
+                ctx.beginPath();
+                let first = true;
+                const steps = 90;
+                for (let s = 0; s <= steps; s++) {
+                    const t = s / steps;
+                    const angle = startAngle + t * Math.PI * 2 * turns;
+                    const rad = baseR * (0.1 + t * 0.9);
+                    const px = cx + Math.cos(angle) * rad;
+                    const py = cy + Math.sin(angle) * rad;
+                    if (first) { ctx.moveTo(px, py); first = false; }
+                    else ctx.lineTo(px, py);
+                }
+                ctx.strokeStyle = color;
+                ctx.lineWidth = lineWidth;
+                ctx.globalAlpha = alpha;
+                ctx.stroke();
+            }
+
+            // ---- Туманность (внешняя) — ХАОТИЧНОЕ БЛУЖДАНИЕ ----
+            function drawNebula(bh, x, y, r, scale) {
+                ctx.save();
+                const t = bh.nebulaTime;
+                
+                const outerGlow = ctx.createRadialGradient(x, y, r * 0.8, x, y, r * 2.6);
+                outerGlow.addColorStop(0, `rgba(70, 0, 140, ${0.35 * scale})`);
+                outerGlow.addColorStop(0.5, `rgba(35, 0, 80, ${0.18 * scale})`);
+                outerGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = outerGlow;
+                ctx.beginPath();
+                ctx.arc(x, y, r * 2.6, 0, Math.PI * 2);
+                ctx.fill();
+                
+                const sortedBlobs = bh.nebulaBlobs.slice().sort((a, b) => b.baseDist - a.baseDist);
+                
+                for (const blob of sortedBlobs) {
+                    // ХАОТИЧНОЕ БЛУЖДАНИЕ:
+                    // 1) Смещение по X и Y в декартовых координатах (независимые фазы)
+                    // 2) Смещение по углу и радиусу
+                    // Каждое пятно качается по своим траекториям с большой амплитудой
+                    
+                    const basePx = Math.cos(blob.baseAngle) * (1.0 + blob.baseDist * 1.4);
+                    const basePy = Math.sin(blob.baseAngle) * (1.0 + blob.baseDist * 1.4);
+                    
+                    // Декартовы колебания — 2 независимые синусоиды
+                    const dx = Math.sin(t * blob.speedX + blob.phaseX) * blob.ampX;
+                    const dy = Math.cos(t * blob.speedY + blob.phaseY) * blob.ampY;
+                    
+                    // Плюс колебание по углу и радиусу
+                    const angleOffset = Math.sin(t * blob.speedA + blob.phaseA) * blob.ampA;
+                    const radOffset = Math.cos(t * blob.speedR + blob.phaseR) * blob.ampR;
+                    
+                    const finalAngle = blob.baseAngle + angleOffset;
+                    const finalDist = (1.0 + blob.baseDist * 1.4) + radOffset;
+                    
+                    const localX = Math.cos(finalAngle) * finalDist + dx;
+                    const localY = Math.sin(finalAngle) * finalDist + dy;
+                    
+                    const px = x + localX * r;
+                    const py = y + localY * r;
+                    
+                    const breathe = 1 + Math.sin(t * 1.5 + blob.phaseX) * 0.15;
+                    const blobSize = r * blob.sizeFactor * (0.9 + blob.baseDist * 0.8) * breathe;
+                    const alpha = blob.brightness * scale * 0.5 * (1 - blob.baseDist * 0.5);
+                    
+                    const grad = ctx.createRadialGradient(px, py, 0, px, py, blobSize);
+                    grad.addColorStop(0, blob.colorBase + `${alpha * 0.8})`);
+                    grad.addColorStop(0.5, blob.colorBase + `${alpha * 0.35})`);
+                    grad.addColorStop(1, blob.colorBase + '0)');
+                    
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(px, py, blobSize, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+
+            // ---- Туманность внутри — ХАОТИЧНОЕ БЛУЖДАНИЕ ----
+            function drawInnerNebula(bh, x, y, r, scale) {
+                ctx.save();
+                const t = bh.nebulaTime;
+                
+                const innerGlow = ctx.createRadialGradient(x, y, 0, x, y, r * 0.95);
+                innerGlow.addColorStop(0, `rgba(0, 0, 0, ${1 * scale})`);
+                innerGlow.addColorStop(0.6, `rgba(10, 0, 30, ${1 * scale})`);
+                innerGlow.addColorStop(0.85, `rgba(40, 0, 80, ${0.8 * scale})`);
+                innerGlow.addColorStop(1, `rgba(100, 0, 180, ${0.4 * scale})`);
+                ctx.fillStyle = innerGlow;
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fill();
+                
+                for (const blob of bh.innerNebulaBlobs) {
+                    const basePx = Math.cos(blob.baseAngle) * (0.3 + blob.baseDist * 0.6);
+                    const basePy = Math.sin(blob.baseAngle) * (0.3 + blob.baseDist * 0.6);
+                    
+                    const dx = Math.sin(t * blob.speedX + blob.phaseX) * blob.ampX;
+                    const dy = Math.cos(t * blob.speedY + blob.phaseY) * blob.ampY;
+                    
+                    const angleOffset = Math.sin(t * blob.speedA + blob.phaseA) * blob.ampA;
+                    const radOffset = Math.cos(t * blob.speedR + blob.phaseR) * blob.ampR;
+                    
+                    const finalAngle = blob.baseAngle + angleOffset;
+                    const finalDist = (0.3 + blob.baseDist * 0.6) + radOffset;
+                    
+                    const localX = Math.cos(finalAngle) * finalDist + dx;
+                    const localY = Math.sin(finalAngle) * finalDist + dy;
+                    
+                    const px = x + localX * r;
+                    const py = y + localY * r;
+                    
+                    const breathe = 1 + Math.sin(t * 1.8 + blob.phaseX) * 0.2;
+                    const blobSize = r * blob.sizeFactor * 0.5 * breathe;
+                    const alpha = blob.brightness * scale * 0.35 * (0.5 + blob.baseDist * 0.5);
+                    
+                    const grad = ctx.createRadialGradient(px, py, 0, px, py, blobSize);
+                    grad.addColorStop(0, blob.colorBase + `${alpha})`);
+                    grad.addColorStop(0.5, blob.colorBase + `${alpha * 0.4})`);
+                    grad.addColorStop(1, blob.colorBase + '0)');
+                    
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(px, py, blobSize, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+
+            function drawBlackHole() {
+                const bh = blackHole;
+                if (!bh.active) return;
+
+                const x = bh.x;
+                const y = bh.y;
+                const scale = bh.collapseScale;
+                const r = bh.radius * scale;
+                const rot = bh.rotation;
+
+                ctx.save();
+                ctx.shadowBlur = 0;
+                ctx.shadowColor = 'transparent';
+                for (let p of bh.particles) {
+                    if (p instanceof Particle) {
+                        p.draw(ctx);
+                    }
+                }
+                ctx.restore();
+
+                // 1. Внешняя туманность
+                drawNebula(bh, x, y, r, scale);
+
+                // 2. Спирали
+                ctx.save();
+                ctx.translate(x, y);
+                
+                const numSpirals = 10;
+                for (let i = 0; i < numSpirals; i++) {
+                    const baseAngle = (i / numSpirals) * Math.PI * 2;
+                    const direction = i % 2 === 0 ? 1 : -1;
+                    const spin = rot * 1.3 * direction + baseAngle;
+                    
+                    const radius = r * 2.8;
+                    const turns = 2.2 + (i % 3) * 0.6;
+                    
+                    ctx.shadowColor = '#9900cc';
+                    ctx.shadowBlur = 20;
+                    drawSpiralArm(0, 0, radius, turns, '#440077', 3.2, spin, 0.32 * scale);
+                    
+                    ctx.shadowBlur = 15;
+                    drawSpiralArm(0, 0, radius * 0.85, turns, '#7700aa', 2.2, spin + 0.2 * direction, 0.48 * scale);
+                    
+                    ctx.shadowBlur = 10;
+                    drawSpiralArm(0, 0, radius * 0.68, turns, '#cc00ff', 1.2, spin + 0.4 * direction, 0.65 * scale);
+                    
+                    ctx.shadowBlur = 6;
+                    drawSpiralArm(0, 0, radius * 0.55, turns, '#ff88ff', 0.5, spin + 0.6 * direction, 0.45 * scale);
+                }
+                ctx.restore();
+
+                // 3. Искажение
+                ctx.save();
+                for (let i = 0; i < 3; i++) {
+                    const offsetX = (Math.random() - 0.5) * 10 * (i + 1);
+                    const offsetY = (Math.random() - 0.5) * 10 * (i + 1);
+                    const distortR = r * (3.2 + i * 0.6);
+                    const distortGrad = ctx.createRadialGradient(
+                        x + offsetX, y + offsetY, r * 1.2,
+                        x + offsetX, y + offsetY, distortR
+                    );
+                    distortGrad.addColorStop(0, `rgba(160, 0, 255, ${0.06 * scale})`);
+                    distortGrad.addColorStop(0.5, `rgba(70, 0, 150, ${0.04 * scale})`);
+                    distortGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                    ctx.fillStyle = distortGrad;
+                    ctx.beginPath();
+                    ctx.arc(x + offsetX, y + offsetY, distortR, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+
+                // 4. Внутренний диск
+                ctx.save();
+                const diskGrad = ctx.createRadialGradient(x, y, r * 0.9, x, y, r * 2.2);
+                diskGrad.addColorStop(0, `rgba(200, 0, 255, ${0.7 * scale})`);
+                diskGrad.addColorStop(0.3, `rgba(150, 0, 200, ${0.35 * scale})`);
+                diskGrad.addColorStop(0.7, `rgba(80, 0, 120, ${0.12 * scale})`);
+                diskGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = diskGrad;
+                ctx.beginPath();
+                ctx.arc(x, y, r * 2.2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+
+                // 5. Кольцо
+                ctx.save();
+                const ringGrad = ctx.createRadialGradient(x, y, r * 0.85, x, y, r * 1.4);
+                ringGrad.addColorStop(0, 'rgba(0, 0, 0, 1)');
+                ringGrad.addColorStop(0.5, `rgba(180, 0, 255, ${0.9 * scale})`);
+                ringGrad.addColorStop(0.8, `rgba(100, 0, 180, ${0.6 * scale})`);
+                ringGrad.addColorStop(1, 'rgba(50, 0, 100, 0)');
+                ctx.fillStyle = ringGrad;
+                ctx.beginPath();
+                ctx.arc(x, y, r * 1.4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+
+                // 6. Горизонт
+                ctx.save();
+                ctx.shadowColor = '#cc00ff';
+                ctx.shadowBlur = 40;
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+
+                // 7. Внутренняя туманность
+                drawInnerNebula(bh, x, y, r, scale);
+
+                // 8. Внутреннее свечение края
+                ctx.save();
+                const edgeGlow = ctx.createRadialGradient(x, y, r * 0.7, x, y, r);
+                edgeGlow.addColorStop(0, 'rgba(0, 0, 0, 0)');
+                edgeGlow.addColorStop(0.7, `rgba(30, 0, 60, ${0.5 * scale})`);
+                edgeGlow.addColorStop(0.92, `rgba(150, 0, 240, ${0.7 * scale})`);
+                edgeGlow.addColorStop(1, `rgba(200, 0, 255, ${0.5 * scale})`);
+                ctx.fillStyle = edgeGlow;
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+
+                // 9. Кольцо
+                ctx.save();
+                ctx.strokeStyle = '#cc00ff';
+                ctx.lineWidth = 2 * scale;
+                ctx.shadowColor = '#e066ff';
+                ctx.shadowBlur = 25;
+                ctx.globalAlpha = 0.7 * scale;
+                ctx.beginPath();
+                ctx.arc(x, y, r * 1.05, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 0.8 * scale;
+                ctx.shadowColor = '#ffffff';
+                ctx.shadowBlur = 12;
+                ctx.globalAlpha = 0.5 * scale;
+                ctx.beginPath();
+                ctx.arc(x, y, r * 1.02, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+
+                // 10. Орбитальные частицы
+                ctx.save();
+                for (let p of bh.particles) {
+                    if (p instanceof OrbitingParticle) {
+                        p.draw(ctx);
+                    }
+                }
+                ctx.restore();
+            }
+
+            function drawBackground() {
+                const grad = ctx.createRadialGradient(width/2, height/2, 0, width/2, height/2, Math.max(width, height) * 0.8);
+                grad.addColorStop(0, '#050008');
+                grad.addColorStop(0.6, '#020005');
+                grad.addColorStop(1, '#000000');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, width, height);
+            }
+
+            canvas.addEventListener('click', () => {
+                if (!blackHole.active) {
+                    spawnBlackHole();
+                }
+            });
+
+            function gameLoop() {
+                updateBlackHole();
+                ctx.clearRect(0, 0, width, height);
+                drawBackground();
+                drawBlackHole();
+                requestAnimationFrame(gameLoop);
+            }
+
+            gameLoop();
+
+            setTimeout(() => {
+                if (!blackHole.active) spawnBlackHole();
+            }, 800);
+        })();
+    </script>
+</body>
+</html>
