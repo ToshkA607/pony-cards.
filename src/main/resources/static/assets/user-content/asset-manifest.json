@@ -1,6 +1,7 @@
 {
   "backgrounds": {
-    "flight": "/assets/sky-world-4k.jpg"
+    "flight": "/assets/sky-world-4k.jpg",
+    "home": "/assets/sky-world-4k.jpg"
   },
   "characters": {
     "menu": "/assets/characters/twilight-menu-transparent.png",

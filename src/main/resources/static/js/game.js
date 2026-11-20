@@ -1,7 +1,24 @@
 const $ = (id) => document.getElementById(id);
 let questResetDeadline=0,questRefreshPending=false;
 let gameState = null, toastTimer, assetManifest = {}, questClockTimer = null;
-async function loadAssetManifest(){try{const r=await fetch('/assets/user-content/asset-manifest.json?v=2.36-catalog30');if(r.ok)assetManifest=await r.json();}catch(e){console.warn('Asset manifest not loaded; using default artwork.',e);}if(game?.sky){game.sky.src=assetManifest.backgrounds?.flight||'/assets/sky-world-4k.jpg';if(!selectedSkin||selectedSkin==='twilight'){game.ponyOpen.src=assetManifest.characters?.open||'/assets/characters/twilight-flight-open.png?v=2.31';game.ponyFold.src=assetManifest.characters?.folded||'/assets/characters/twilight-flight-folded.png?v=2.31';}}const menuPony=document.querySelector('.home-pony img');if(menuPony&&assetManifest.characters?.menu)menuPony.src=assetManifest.characters.menu;const featuredPack=document.querySelector('.pack-preview img');if(featuredPack&&assetManifest.packs?.basic)featuredPack.src=assetManifest.packs.basic;}
+
+// Reuse decoded images so pack cards do not flash from an empty frame during reveal.
+const decodedImageCache = new Map();
+function preloadImage(src) {
+ if(!src)return Promise.resolve(false);
+ if(decodedImageCache.has(src))return decodedImageCache.get(src);
+ const task=new Promise(resolve=>{
+  const image=new Image();
+  image.decoding='async';
+  image.onload=async()=>{try{if(image.decode)await image.decode();}catch(_){}resolve(true);};
+  image.onerror=()=>resolve(false);
+  image.src=src;
+  if(image.complete&&image.naturalWidth)resolve(true);
+ });
+ decodedImageCache.set(src,task);
+ return task;
+}
+async function loadAssetManifest(){try{const r=await fetch('/assets/user-content/asset-manifest.json?v=2.53.0-desktop-viewport-fix');if(r.ok)assetManifest=await r.json();}catch(e){console.warn('Asset manifest not loaded; using default artwork.',e);}void preloadImage('/assets/ui/card-back.png');Object.values(assetManifest.packs||{}).forEach(src=>void preloadImage(src));if(assetManifest.backgrounds?.home)document.documentElement.style.setProperty('--home-background-image',`url(\"${assetManifest.backgrounds.home}\")`);if(game?.sky){game.sky.src=assetManifest.backgrounds?.flight||'/assets/sky-world-4k.jpg';if(!selectedSkin||selectedSkin==='twilight'){game.ponyOpen.src=assetManifest.characters?.open||'/assets/characters/twilight-flight-open.png?v=2.31';game.ponyFold.src=assetManifest.characters?.folded||'/assets/characters/twilight-flight-folded.png?v=2.31';}}const menuPony=document.querySelector('.home-pony img');if(menuPony&&assetManifest.characters?.menu)menuPony.src=assetManifest.characters.menu;const featuredPack=document.querySelector('.pack-preview img');if(featuredPack&&assetManifest.packs?.basic)featuredPack.src=assetManifest.packs.basic;}
 // Level soundtracks are separate from the existing menu music. The menu soundtrack
 // and its synthesizer remain untouched; only campaign gameplay selects tracks 1–3.
 const levelSoundtrack = {
@@ -139,6 +156,9 @@ async function openPack(id){
   if(packEl){packEl.classList.add('pack-opening');setTimeout(()=>packEl.classList.remove('pack-opening'),1200);}
   soundFX.pack();
   const result=await api('/api/shop/open',{method:'POST',body:JSON.stringify({packId:id})});
+  const revealImages=result.opened.map(c=>assetManifest.cards?.[c.id]||c.image_url||c.imageUrl||c.art_url||c.artUrl||'');
+  void preloadImage('/assets/ui/card-back.png');
+  revealImages.forEach(src=>{if(src)void preloadImage(src);});
   gameState=result.state;updateHeader();renderShop();renderCollection();
   const openedRoot=$('opened-cards');openedRoot.innerHTML='';
   result.opened.forEach((c,i)=>{
@@ -160,7 +180,8 @@ async function openPack(id){
    if(c.duplicate){const detail=document.createElement('small');detail.className='duplicate-detail';detail.textContent=`Теперь ×${c.quantity} в коллекции`;meta.append(detail);}
    card.append(art,meta);openedRoot.append(card);
    const revealImageUrl=assetManifest.cards?.[c.id]||c.image_url||c.imageUrl||c.art_url||c.artUrl||'';
-   setTimeout(()=>{
+   setTimeout(async()=>{
+    if(revealImageUrl)await preloadImage(revealImageUrl);
     card.classList.add('is-flipping');
     setTimeout(()=>{
      if(revealImageUrl){image.src=revealImageUrl;image.alt=c.name||'Артефакт';image.classList.remove('pack-card-fallback');}
@@ -205,7 +226,7 @@ class FluttershyButterflyProjectile {
 
 const game={canvas:$('game-canvas'),selectedLevel:1,levelConfig:campaignLevels[0],ctx:null,w:0,h:0,dpr:1,raf:0,running:false,paused:false,over:false,score:0,coins:0,combo:0,shieldUsed:false,activeEffect:null,comboTimer:0,world:0,spawn:0,last:0,lastTap:0,obstacles:[],pickups:[],particles:[],shake:0,bossMode:false,bossFinished:false,bossTransition:null,finalObstacle:null,bossImage:new Image(),skinPortrait:false,boss:null,bossShots:[],bossAttacks:[],playerShots:[],flutterButterflies:[],bossTarget:null,sky:new Image(),ponyOpen:new Image(),ponyFold:new Image(),
  init(){this.ctx=this.canvas.getContext('2d',{alpha:false});this.bossImage.src='/assets/characters/discord-boss.png';this.coinImage=new Image();this.coinImage.src='/assets/ui/coin.png?v=2.51';this.sky.src=assetManifest.backgrounds?.flight||'/assets/sky-world-4k.jpg';this.ponyOpen.src=assetManifest.characters?.open||'/assets/characters/twilight-flight-open.png?v=2.31';this.ponyFold.src=assetManifest.characters?.folded||'/assets/characters/twilight-flight-folded.png?v=2.31';this.sky.onload=()=>{if(!this.running)this.drawIdle();};window.addEventListener('blur',()=>{if(this.running)this.pause(true);});},
- resize(){const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return;this.dpr=Math.min(devicePixelRatio||1,2);this.w=r.width;this.h=r.height;this.canvas.width=Math.round(r.width*this.dpr);this.canvas.height=Math.round(r.height*this.dpr);this.ctx.setTransform(this.dpr,0,0,this.dpr,0,0);this.ctx.imageSmoothingEnabled=true;this.ctx.imageSmoothingQuality='high';if(window.PonyOriginalCombatEffects){const fx=window.PonyOriginalCombatEffects;fx.projectiles.resize(this.w,this.h);fx.blackHole.resize(this.w,this.h);fx.laser.resize(this.w,this.h);}if(!this.running)this.drawIdle();},
+ resize(){const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return;/* Match the original desktop sizing: gameplay coordinates follow the visible canvas size, while the backing store uses device pixels for crisp rendering. */this.w=r.width;this.h=r.height;this.dpr=Math.min(window.devicePixelRatio||1,2.5);const pixelWidth=Math.max(1,Math.round(r.width*this.dpr)),pixelHeight=Math.max(1,Math.round(r.height*this.dpr));if(this.canvas.width!==pixelWidth)this.canvas.width=pixelWidth;if(this.canvas.height!==pixelHeight)this.canvas.height=pixelHeight;this.ctx.setTransform(this.dpr,0,0,this.dpr,0,0);this.ctx.imageSmoothingEnabled=true;this.ctx.imageSmoothingQuality='high';if(window.PonyOriginalCombatEffects){const fx=window.PonyOriginalCombatEffects;fx.projectiles.resize(this.w,this.h);fx.blackHole.resize(this.w,this.h);fx.laser.resize(this.w,this.h);}if(!this.running)this.drawIdle();},
  start(levelId=selectedLevel,endless=false,bossPractice=false){this.bossPractice=!!bossPractice;this.totalBossDamage=0;$('boss-damage-counter')?.classList.toggle('hidden',!this.bossPractice);if($('boss-damage-total'))$('boss-damage-total').textContent='0';selectedLevel=Math.max(1,Math.min(3,Number(levelId)||1));this.selectedLevel=selectedLevel;this.endlessMode=!!endless;const playEyebrow=document.querySelector('.play-title .eyebrow');if(playEyebrow)playEyebrow.textContent=this.endlessMode?'БЕСКОНЕЧНЫЙ РЕЖИМ':`УРОВЕНЬ ${selectedLevel}`;this.levelConfig=this.endlessMode?{...campaignLevels[0],towers:999999,boss:null,hp:0,speed:1,gap:1}:campaignLevels[selectedLevel-1];this.sky.src=this.levelConfig.background;this.bossImage.src=this.levelConfig.bossImage||'/assets/characters/discord-boss.png';soundFX.unlock();levelSoundtrack.play(selectedLevel);this.resize();if(window.PonyOriginalCombatEffects){const fx=window.PonyOriginalCombatEffects;fx.projectiles.resize(this.w,this.h);fx.blackHole.resize(this.w,this.h);fx.laser.resize(this.w,this.h);fx.projectiles.clear();fx.blackHole.clear();fx.laser.clear();}cancelAnimationFrame(this.raf);this.score=0;this.coins=0;this.runDamaged=false;this.combo=0;this.shieldUsed=false;this.activeCards=gameState?.activeCards||[];this.activeEffect=this.activeCards;this.speedUpgrade=Number(gameState?.upgrades?.flight_speed||gameState?.upgrades?.flightSpeed||0);this.coinBonusRemainder=0;this.comboTimer=0;this.world=0;this.bossMode=false;this.bossFinished=false;this.bossTransition=null;this.finalObstacle=null;this.bossApproach=false;$('boss-hud')?.classList.add('hidden');$('boss-damage-counter')?.classList.add('hidden');$('touch-hint').textContent='КОРОТКО КАСАЙСЯ ЭКРАНА, ЧТОБЫ ЛЕТЕТЬ';this.boss=null;this.bossShots=[];this.bossAttacks=[];this.bossHazards=[];this.playerShots=[];this.flutterButterflies=[];this.originalBossAttackIndex=-1;this.originalPlayerAttackIndex=0;this.originalBossAttackTimer=this.selectedLevel===3?.38:.72;this.originalBlackHoleHit=false;this.originalLaserHit=false;this.multiLasers=[];this.laserEffects=[];this.multiLaserHit=false;this.boundaryHitCooldown=0;this.bossTarget=null;this.spawn=.9;this.bossCoinTimer=2.4;this.obstacles=[];this.pickups=[];this.particles=[];this.pony={x:this.w*.22,y:this.h*.46,vy:0,flap:.18,invuln:0};this.running=true;this.paused=false;this.over=false;this.runtimeErrorNotified=false;$('hud-coins').textContent='0';$('tower-count').textContent=this.endlessMode?'0':`0 / ${this.levelConfig.towers}`;$('game-overlay').classList.add('hidden');$('overlay-menu-btn')?.classList.add('hidden');if(this.activeCards.length)showToast(`Способности: ${this.activeCards.map(c=>c.ability_name).join(', ')}`);$('pause-btn').innerHTML='<span class="pause-bars" aria-hidden="true"></span>';this.last=performance.now();this.accumulator=0;this.raf=requestAnimationFrame(t=>this.loop(t));if(this.bossPractice){this.levelConfig={...campaignLevels[2],boss:'Дискорд',hp:1000000,towers:0};this.beginBoss(false);$('boss-damage-counter')?.classList.remove('hidden');$('boss-damage-total').textContent='0';}},
  
  effectValue(type){return (this.activeCards||[]).filter(c=>c.effect_type===type).reduce((sum,c)=>sum+Number(c.effect_value||0),0);},
@@ -262,8 +283,8 @@ const game={canvas:$('game-canvas'),selectedLevel:1,levelConfig:campaignLevels[0
   }
   b.hitFlash=Math.max(0,b.hitFlash-dt);if(Number(gameState?.upgrades?.regeneration||0)>0&&b.playerHp<b.maxPlayerHp){b.regenTimer+=dt;if(b.regenTimer>=Math.max(9,24-Number(gameState.upgrades.regeneration)*4)){b.regenTimer=0;b.playerHp=Math.min(b.maxPlayerHp,b.playerHp+1);$('boss-player-hp').innerHTML=Array.from({length:b.playerHp},()=>'<img class="heart-icon" src="/assets/ui/heart.png" alt="♥">').join('');this.burst(p.x,p.y,12,'#8cffb5');}}b.attackFlash=Math.max(0,(b.attackFlash||0)-dt);
   if(b.phase==='intro'){/* Discord is entering; keep the same world and let scenery drift away. */}
-  else if(b.phase==='intro-banner'){b.phaseTime-=dt;if(b.phaseTime<=0){b.phase='attack';b.phaseTime=(this.selectedLevel===3?3.55:2.96)/this.levelConfig.speed;$('boss-phase-label').textContent='БОСС АТАКУЕТ — УКЛОНЯЙСЯ';}}
-  else {b.phaseTime-=dt;if(b.phaseTime<=0){if(b.phase==='attack'){b.phase='rest';b.phaseTime=.96;$('boss-phase-label').textContent='ПЕРЕДЫШКА — ГОТОВЬСЯ К СЛЕДУЮЩЕЙ АТАКЕ';soundFX.pass();}else{b.phase='attack';b.phaseTime=(this.selectedLevel===3?3.55:2.96)/this.levelConfig.speed;$('boss-phase-label').textContent='АТАКА! УКЛОНЯЙСЯ';}}}
+  else if(b.phase==='intro-banner'){b.phaseTime-=dt;if(b.phaseTime<=0){b.phase='attack';b.phaseTime=(this.selectedLevel===3?3.55:2.5)/this.levelConfig.speed;$('boss-phase-label').textContent='БОСС АТАКУЕТ — УКЛОНЯЙСЯ';}}
+  else {b.phaseTime-=dt;if(b.phaseTime<=0){if(b.phase==='attack'){b.phase='rest';b.phaseTime=.96;$('boss-phase-label').textContent='ПЕРЕДЫШКА — ГОТОВЬСЯ К СЛЕДУЮЩЕЙ АТАКЕ';soundFX.pass();}else{b.phase='attack';b.phaseTime=(this.selectedLevel===3?3.55:2.5)/this.levelConfig.speed;$('boss-phase-label').textContent='АТАКА! УКЛОНЯЙСЯ';}}}
   this.updateOriginalBossAttacks(dt);this.updateBossHazards(dt);
   for(let i=this.flutterButterflies.length-1;i>=0;i--){const shot=this.flutterButterflies[i];shot.update(dt);if(shot.dead)this.flutterButterflies.splice(i,1);}
   (this.laserEffects||[]).forEach((beamFx,i)=>{beamFx.renderFrame();const state=beamFx.getState(),beam=this.multiLasers[i];if(beam){beam.phase=state.phase===1?'warning':state.phase===2?'active':state.phase===3?'fade':'done';beam.activeTime=state.phase===2?1:0;}});
@@ -335,8 +356,8 @@ const game={canvas:$('game-canvas'),selectedLevel:1,levelConfig:campaignLevels[0
     const patternCount=this.selectedLevel===1?levelOnePatterns.length:this.selectedLevel===2?6:19;
     let pattern=this.selectedLevel===3?Math.floor(Math.random()*patternCount):(this.selectedLevel===2?nightmarePatterns[Math.floor(Math.random()*nightmarePatterns.length)]:levelOnePatterns[Math.floor(Math.random()*levelOnePatterns.length)]);
     if(pattern===this.originalBossAttackIndex)pattern=(pattern+1+Math.floor(Math.random()*(patternCount-1)))%patternCount;this.originalBossAttackIndex=pattern;
-    if(this.selectedLevel===1){this.spawnChrysalisAttack(pattern,spawnVolley);this.originalBossAttackTimer=1.25+Math.random()*.45;}
-    else if(this.selectedLevel===2){this.spawnNightmareAttack(pattern,spawnVolley);this.originalBossAttackTimer=pattern===1?3.25+Math.random()*.55:pattern===3?2.45+Math.random()*.4:1.65+Math.random()*.45;}
+    if(this.selectedLevel===1){this.spawnChrysalisAttack(pattern,spawnVolley);this.originalBossAttackTimer=.95+Math.random()*.35;}
+    else if(this.selectedLevel===2){this.spawnNightmareAttack(pattern,spawnVolley);this.originalBossAttackTimer=pattern===1?3.25+Math.random()*.55:pattern===2?1.65+Math.random()*.45:pattern===3?1.9+Math.random()*.3:1.2+Math.random()*.35;}
     else if(this.selectedLevel===3&&pattern>=8&&pattern<=12){this.spawnChrysalisAttack(pattern-8,spawnVolley);this.originalBossAttackTimer=.95+Math.random()*.35;}
     else if(this.selectedLevel===3&&pattern>=13){this.spawnNightmareAttack(pattern-13,spawnVolley);this.originalBossAttackTimer=.95+Math.random()*.35;}
     else if(pattern===0){
@@ -415,10 +436,10 @@ const game={canvas:$('game-canvas'),selectedLevel:1,levelConfig:campaignLevels[0
    soundFX.attackAcid();const sx=b.x-65,sy=b.y,tx=-this.w*.18,ty=p.y,dx=tx-sx,dy=ty-sy,dist=Math.hypot(dx,dy)||1,speed=390;this.bossHazards.push({type:'splittingCore',x:sx,y:sy,vx:dx/dist*speed,vy:dy/dist*speed,generation:0,age:0,splitAt:.42,life:(sx+this.w*.25)/speed+1.2,r:18,trail:[],spikes:Array.from({length:8},(_,i)=>({a:i*Math.PI/4,spin:(Math.random()-.5)*.2})),hit:false});
   }else if(pattern===3){
    // Poison berries: short straight thorned green projectiles.
-   soundFX.attackAcid();const count=1+Math.floor(Math.random()*3);for(let i=0;i<count;i++){const y=Math.max(65,Math.min(this.h-65,p.y+(Math.random()-.5)*170));this.bossHazards.push({type:'poisonBerry',x:b.x-65-i*12,y,vx:-(650+Math.random()*90),vy:0,r:17,age:0,life:4,hit:false});}
+   soundFX.attackAcid();const count=2+Math.floor(Math.random()*3);for(let i=0;i<count;i++){const y=Math.max(65,Math.min(this.h-65,p.y+(Math.random()-.5)*210));this.bossHazards.push({type:'poisonBerry',x:b.x-65-i*18,y,vx:-(760+Math.random()*120),vy:0,r:17,age:0,life:4,hit:false});}
   }else if(pattern===4){
    // MiniLaser from the supplied HTML: a straight green beam projectile aimed at the player's current lane.
-   soundFX.attackAcid();const sx=b.x-65,sy=b.y,tx=-this.w*.16,dx=tx-sx,speed=840;this.bossHazards.push({type:'miniLaser',x:sx,y:sy,vx:-speed,vy:0,angle:Math.PI,age:0,life:Math.abs(dx)/speed+.45,r:8,length:40,trail:[],hit:false});
+   soundFX.attackAcid();const sx=b.x-65,tx=-this.w*.16,dx=tx-sx,speed=920;[-24,24].forEach(offset=>{const sy=Math.max(40,Math.min(this.h-40,b.y+offset));this.bossHazards.push({type:'miniLaser',x:sx,y:sy,vx:-speed,vy:0,angle:Math.PI,age:0,life:Math.abs(dx)/speed+.45,r:8,length:40,trail:[],hit:false});});
   }
  },
  spawnNightmareAttack(pattern,spawnVolley){
@@ -440,8 +461,12 @@ const game={canvas:$('game-canvas'),selectedLevel:1,levelConfig:campaignLevels[0
   }else if(pattern===4||pattern===5){
    // Source demo has two separate moon attacks. Spawn only the selected variant.
    soundFX.attackDark();const variant=pattern===4?1:2,y=Math.max(70,Math.min(this.h-70,p.y+(Math.random()-.5)*130));
-   const sx=b.x-55,sy=y+(variant===1?-34:48),tx=-120,ty=Math.max(35,Math.min(this.h-35,sy+(Math.random()-.5)*50)),dx=tx-sx,dy=ty-sy,dist=Math.hypot(dx,dy)||1,speed=variant===1?480:510;
-   this.bossHazards.push({type:'moonCrescent',variant,x:sx,y:sy,vx:dx/dist*speed,vy:dy/dist*speed,tx,ty,r:variant===1?26:22,age:0,life:4,trail:[],sparkles:Array.from({length:variant===1?10:6},()=>({angle:Math.random()*6.28,dist:25+Math.random()*25,phase:Math.random()*6.28,size:1.5+Math.random()*2.5,speed:.02+Math.random()*.04})),hit:false});
+   const sx=b.x-55,tx=-120,speed=variant===1?500:530;
+   [-1,1].forEach((side,index)=>{
+    const sy=Math.max(40,Math.min(this.h-40,y+(variant===1?-34:48)+side*(28+index*8)));
+    const ty=Math.max(35,Math.min(this.h-35,sy+(Math.random()-.5)*70)),dx=tx-sx,dy=ty-sy,dist=Math.hypot(dx,dy)||1;
+    this.bossHazards.push({type:'moonCrescent',variant,x:sx-index*18,y:sy,vx:dx/dist*speed,vy:dy/dist*speed,tx,ty,r:variant===1?26:22,age:0,life:4,trail:[],sparkles:Array.from({length:variant===1?10:6},()=>({angle:Math.random()*6.28,dist:25+Math.random()*25,phase:Math.random()*6.28,size:1.5+Math.random()*2.5,speed:.02+Math.random()*.04})),hit:false});
+   });
   }
  },
  updateBossHazards(dt){

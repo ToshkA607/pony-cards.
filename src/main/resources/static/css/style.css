@@ -3,7 +3,7 @@
 @media(min-width:651px) and (max-width:850px){.pack-list{grid-template-columns:1fr 1fr}.card-grid{grid-template-columns:repeat(3,1fr)}}
 
 /* Sky Adventure art pass */
-.hero{background-image:linear-gradient(90deg,rgba(23,18,48,.97) 0%,rgba(31,23,60,.88) 48%,rgba(31,23,60,.18) 100%),url('/assets/sky-world-4k.jpg');background-size:cover;background-position:center 48%;border:1px solid #d6b5ff35;box-shadow:0 18px 55px #09071855,inset 0 0 55px #c18bff18}
+.hero{background-image:linear-gradient(90deg,rgba(23,18,48,.97) 0%,rgba(31,23,60,.88) 48%,rgba(31,23,60,.18) 100%),var(--home-background-image,url('/assets/sky-world-4k.jpg'));background-size:cover;background-position:center 48%;border:1px solid #d6b5ff35;box-shadow:0 18px 55px #09071855,inset 0 0 55px #c18bff18}
 .hero-pony{width:min(43%,390px);height:100%;right:0;display:flex;align-items:center;justify-content:center;font-size:0;filter:none;transform:translateY(-50%);pointer-events:none}
 .hero-pony img{width:100%;height:100%;object-fit:contain;object-position:center bottom;filter:drop-shadow(0 18px 25px #09071899);animation:ponyFloat 3.6s ease-in-out infinite}
 @keyframes ponyFloat{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-12px) rotate(2deg)}}
@@ -34,7 +34,7 @@
 
 /* 2.0 full-screen responsive redesign */
 :root{--bg:#100c27;--panel:#241a49;--panel2:#34245f;--text:#fffaff;--muted:#d0c3e9;--pink:#ff83cf;--purple:#b58cff;--cyan:#8beaff;--gold:#ffdc82}
-body{min-height:100svh;background:#120d2b url('/assets/sky-world-4k.jpg') center/cover fixed;font-family:Nunito,'Trebuchet MS',system-ui,sans-serif;overflow-x:hidden}
+body{min-height:100svh;background:#120d2b var(--home-background-image,url('/assets/sky-world-4k.jpg')) center/cover fixed;font-family:Nunito,'Trebuchet MS',system-ui,sans-serif;overflow-x:hidden}
 body:before{content:"";position:fixed;inset:0;background:linear-gradient(120deg,#160f39e8,#24114bc9 55%,#17103de8);pointer-events:none;z-index:-1}
 .app-shell{max-width:none;width:100%;min-height:100svh;margin:0;padding:0 3.2vw 92px}
 .topbar{height:76px;max-width:1800px;margin:auto;border-bottom:1px solid #e8c9ff35;gap:18px}
@@ -43,7 +43,7 @@ body:before{content:"";position:fixed;inset:0;background:linear-gradient(120deg,
 .wallet{background:#291d50dd;border:1px solid #f3d9ff55;box-shadow:inset 0 1px #fff2}.coin-icon{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:linear-gradient(140deg,#fff1a7,#e79a29);color:#8d4d14;font-weight:1000}
 main{max-width:1800px;margin:auto}.screen{padding:25px 0 28px;min-height:calc(100svh - 170px)}.home-layout{display:grid;grid-template-columns:minmax(210px, .78fr) minmax(500px,2.3fr) minmax(210px,.78fr);gap:18px;min-height:calc(100svh - 180px)}
 .home-side,.home-right{display:flex;flex-direction:column;gap:16px}.profile-card,.side-panel,.daily-card,.featured-pack,.tip-card{background:linear-gradient(145deg,#38245feF,#20163feF);border:1px solid #e9c5ff66;border-radius:21px;box-shadow:0 12px 35px #0b062c55,inset 0 1px #fff3}.profile-card{display:flex;align-items:center;gap:13px;padding:16px}.profile-avatar{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(140deg,#f7b9ff,#9a6be9);border:2px solid #ffe2ff;color:#5d318f;font-size:31px}.profile-card b,.profile-card small{display:block}.profile-card small{font-size:11px;color:#cdbde8;margin-top:4px}.level-line{height:6px;width:120px;background:#130d2c;border-radius:8px;margin-top:9px;overflow:hidden}.level-line i{display:block;width:65%;height:100%;background:linear-gradient(90deg,#f98be0,#a88bff);border-radius:8px}.side-panel{padding:17px}.panel-title{font-weight:900;font-size:15px;margin-bottom:14px;display:flex;gap:8px;align-items:center}.mini-icon{color:#ffdf83;font-size:20px}.quest{display:flex;align-items:center;gap:10px;padding:12px 0;border-top:1px solid #ffffff18}.quest-symbol{width:30px;height:30px;border-radius:10px;background:#8053ba66;color:#ffdb8c;display:grid;place-items:center;font-size:18px}.quest b,.quest small{display:block}.quest b{font-size:12px}.quest small{font-size:10px;color:#c5b5e1;margin-top:4px}.daily-card{display:grid;grid-template-columns:50px 1fr;align-items:center;text-align:left;padding:14px;gap:6px}.gift-icon{grid-row:span 2;font-size:39px;color:#ffdf84;text-shadow:0 0 15px #ffd77a}.daily-card b,.daily-card small{display:block}.daily-card b{font-size:12px}.daily-card small{font-size:10px;color:#cdbde8;margin-top:3px}.daily-card strong{grid-column:2;background:linear-gradient(90deg,#ffdf8b,#f4a847);color:#57316b;border-radius:10px;text-align:center;padding:7px;font-size:11px}
-.home-center{min-width:0;display:flex;flex-direction:column;gap:15px}.home-sky{position:relative;flex:1;min-height:390px;overflow:hidden;border:1px solid #e9c5ff75;border-radius:28px;background:linear-gradient(90deg,#241544e8 0%,#38205d9c 46%,#37205722 100%),url('/assets/sky-world-4k.jpg') center/cover;box-shadow:0 18px 45px #09051e77,inset 0 0 55px #d8a8ff24;padding:clamp(22px,4vw,52px);display:flex;align-items:center}.sky-copy{position:relative;z-index:2;max-width:53%;text-shadow:0 2px 12px #21133d}.eyebrow{font-size:10px;letter-spacing:2px;font-weight:1000;color:#a9efff}.sky-copy h1{font-size:clamp(42px,5vw,76px);margin:12px 0;line-height:.95;letter-spacing:-2px;text-shadow:0 4px 20px #1b0d39}.sky-copy h1 em{font-style:normal;color:#ff9bd7}.sky-copy p{color:#f0e7ff;line-height:1.6;font-size:clamp(12px,1.1vw,16px);max-width:420px}.home-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px}.primary-btn{background:linear-gradient(110deg,#ff86cf,#a979ff);color:#321650;border:1px solid #fff9;box-shadow:0 8px 26px #d36aff55,inset 0 1px #fff9;font-size:15px}.secondary-btn{border:1px solid #f6dfff77;background:#34205bbd;border-radius:14px;padding:12px 17px;font-weight:800;color:#fff}.home-pony{position:absolute;right:1%;bottom:-3%;height:93%;width:50%;display:flex;align-items:end;justify-content:center;pointer-events:none}.home-pony img{height:100%;width:100%;object-fit:contain;object-position:center bottom;filter:drop-shadow(0 16px 18px #16072c99);animation:heroPony 4s ease-in-out infinite}@keyframes heroPony{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-11px) rotate(1deg)}}.floating-star{position:absolute;color:#fff1a9;text-shadow:0 0 16px #fff;animation:twinkle 2s ease-in-out infinite}.star-a{right:42%;top:14%;font-size:28px}.star-b{right:7%;top:34%;font-size:22px;animation-delay:.8s}@keyframes twinkle{50%{opacity:.3;transform:scale(.7) rotate(30deg)}}
+.home-center{min-width:0;display:flex;flex-direction:column;gap:15px}.home-sky{position:relative;flex:1;min-height:390px;overflow:hidden;border:1px solid #e9c5ff75;border-radius:28px;background:linear-gradient(90deg,#241544e8 0%,#38205d9c 46%,#37205722 100%),var(--home-background-image,url('/assets/sky-world-4k.jpg')) center/cover;box-shadow:0 18px 45px #09051e77,inset 0 0 55px #d8a8ff24;padding:clamp(22px,4vw,52px);display:flex;align-items:center}.sky-copy{position:relative;z-index:2;max-width:53%;text-shadow:0 2px 12px #21133d}.eyebrow{font-size:10px;letter-spacing:2px;font-weight:1000;color:#a9efff}.sky-copy h1{font-size:clamp(42px,5vw,76px);margin:12px 0;line-height:.95;letter-spacing:-2px;text-shadow:0 4px 20px #1b0d39}.sky-copy h1 em{font-style:normal;color:#ff9bd7}.sky-copy p{color:#f0e7ff;line-height:1.6;font-size:clamp(12px,1.1vw,16px);max-width:420px}.home-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px}.primary-btn{background:linear-gradient(110deg,#ff86cf,#a979ff);color:#321650;border:1px solid #fff9;box-shadow:0 8px 26px #d36aff55,inset 0 1px #fff9;font-size:15px}.secondary-btn{border:1px solid #f6dfff77;background:#34205bbd;border-radius:14px;padding:12px 17px;font-weight:800;color:#fff}.home-pony{position:absolute;right:1%;bottom:-3%;height:93%;width:50%;display:flex;align-items:end;justify-content:center;pointer-events:none}.home-pony img{height:100%;width:100%;object-fit:contain;object-position:center bottom;filter:drop-shadow(0 16px 18px #16072c99);animation:heroPony 4s ease-in-out infinite}@keyframes heroPony{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-11px) rotate(1deg)}}.floating-star{position:absolute;color:#fff1a9;text-shadow:0 0 16px #fff;animation:twinkle 2s ease-in-out infinite}.star-a{right:42%;top:14%;font-size:28px}.star-b{right:7%;top:34%;font-size:22px;animation-delay:.8s}@keyframes twinkle{50%{opacity:.3;transform:scale(.7) rotate(30deg)}}
 .home-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}.home-metrics>div{background:#2a1c4ee8;border:1px solid #e7caff4a;border-radius:15px;padding:12px 14px;min-width:0}.home-metrics small,.home-metrics b{display:block}.home-metrics small{font-size:9px;color:#c5b5e4;letter-spacing:.8px}.home-metrics b{font-size:clamp(15px,1.6vw,22px);margin-top:5px;color:#fff}.home-shortcuts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.shortcut{display:grid;grid-template-columns:40px 1fr;text-align:left;align-items:center;gap:1px 10px;padding:12px;border-radius:16px;border:1px solid #e7caff48;background:linear-gradient(140deg,#38235f,#241746);color:#fff}.shortcut-icon{grid-row:span 2;width:38px;height:38px;display:grid;place-items:center;border-radius:12px;background:#a16bd255;color:#ffe0a0;font-size:24px}.shortcut b{font-size:12px}.shortcut small{font-size:9px;color:#c6b6df}.featured-pack{padding:18px;text-align:center}.featured-pack h3{margin:12px 0 4px}.featured-pack p,.tip-card p{color:#cdbde8;font-size:11px;line-height:1.5}.pack-preview{width:115px;height:145px;margin:15px auto 8px;border-radius:13px;border:3px solid #eecaff;background:linear-gradient(145deg,#f2a5f6,#8c50cf 55%,#34256b);box-shadow:0 0 25px #c86cff99;transform:rotate(-5deg);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;text-shadow:0 2px 8px #4b1769}.pack-preview span{font-size:33px}.pack-preview b{font-size:17px;line-height:1.05}.featured-pack button{border:0;border-radius:11px;padding:10px 15px;background:linear-gradient(90deg,#ffdb83,#f2a74b);color:#57316b;font-weight:900;width:100%}.tip-card{padding:17px}.tip-card>span{font-size:24px;color:#aeefff}.tip-card b{display:block;margin-top:4px}.tip-card p{margin-bottom:0}
 /* full viewport gameplay */
 .play-screen.active{position:fixed;inset:0;z-index:30;padding:0!important;min-height:100svh;background:#1a1440}.play-screen .screen-heading{position:absolute;z-index:4;top:0;left:0;right:0;margin:0;padding:12px 18px;background:linear-gradient(180deg,#170d3dcc,#170d3d00);gap:12px}.play-screen .screen-heading h2{font-size:17px}.play-screen .eyebrow{font-size:8px}.play-screen .back-btn{background:#281849bb;border-color:#fff5}.play-title{margin-right:auto}.run-score,.run-coins{background:#27194ccc;border:1px solid #fff5;border-radius:13px;padding:9px 13px;color:#e7d9ff;font-size:11px}.run-score b,.run-coins b{color:#ffe18c;font-size:16px}.game-frame{position:absolute;inset:0;width:100%;height:100%;min-height:0;border:0;border-radius:0;background:#7298df url('/assets/sky-world-4k.jpg') center/cover;box-shadow:none}.game-frame canvas{width:100%;height:100%;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}.game-hud{position:absolute;top:76px;left:18px;right:18px;display:flex;gap:9px;align-items:center;pointer-events:none}.hud-pill{padding:8px 13px;border-radius:13px;background:#241747b8;border:1px solid #f6dfff66;backdrop-filter:blur(10px);min-width:83px}.hud-pill span,.hud-pill b{display:block}.hud-pill span{font-size:8px;letter-spacing:1px;color:#d4c5ef}.hud-pill b{font-size:15px;color:#fff}.power-hud{opacity:.45}.power-hud.active{opacity:1;border-color:#8df3ff;box-shadow:0 0 18px #80eeff99}.pause-btn{pointer-events:auto;margin-left:auto;width:39px;height:39px;border-radius:50%;border:1px solid #fff8;background:#281849c9;color:#fff;font-size:18px;backdrop-filter:blur(10px)}.game-overlay{background:#1b124b55;backdrop-filter:blur(3px)}.overlay-card{background:linear-gradient(145deg,#39225feF,#20163fee);border:1px solid #f2d8ff99;box-shadow:0 20px 70px #13082d99;max-width:380px}.overlay-card p{color:#e0d5f4}.overlay-icon{color:#ffdf8b;text-shadow:0 0 22px #ffd66c;font-size:42px}.touch-hint{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);color:#fff9;font-size:9px;letter-spacing:2px;text-shadow:0 2px 5px #241342;pointer-events:none}.controls-hint{display:none}
@@ -854,3 +854,64 @@ html,body{scrollbar-width:none;-ms-overflow-style:none}html::-webkit-scrollbar,b
 /* 2.52.1 repair: soften level cover brightness without altering source images */
 .level-card .level-art img{filter:brightness(.84) saturate(.88)}
 .level-card:not(:disabled):hover .level-art img{filter:brightness(.92) saturate(.98)}
+
+
+/* v2.52.8 — fixed 16:9 gameplay viewport. The game world stays identical at every browser zoom and device size; mobile shows the complete arena instead of cropping/stretching it. */
+#game-canvas{object-fit:contain!important;object-position:center center!important;image-rendering:auto!important}
+@media(max-width:700px){.game-frame{background-color:#182b57;background-image:linear-gradient(180deg,#17264b,#263d70)!important}.game-frame canvas{object-fit:contain!important;object-position:center center!important}}
+
+
+/* v2.52.9 — responsive 16:9 game viewport with crisp backing resolution */
+.play-screen.active{
+  position:fixed!important;inset:0!important;width:100vw;height:100vh;height:100dvh;height:100svh;
+  padding:0!important;margin:0!important;overflow:hidden!important;z-index:40;background:#10152f;
+}
+.play-screen .screen-heading{
+  position:absolute!important;z-index:8;top:0;left:0;right:0;
+  padding:calc(env(safe-area-inset-top) + 8px) 14px 8px!important;
+  pointer-events:none;
+}
+.play-screen .screen-heading button{pointer-events:auto}
+.play-screen .game-frame{
+  position:absolute!important;inset:0!important;width:100vw!important;height:100vh!important;height:100dvh!important;height:100svh!important;
+  min-height:0!important;border:0!important;border-radius:0!important;overflow:hidden!important;
+  background:#10152f!important;
+}
+.play-screen .game-frame canvas,
+.play-screen .game-frame .game-hud,
+.play-screen .game-frame .game-overlay{
+  position:absolute!important;
+  width:min(100vw,177.7778svh)!important;
+  height:min(100svh,56.25vw)!important;
+  max-width:none!important;max-height:none!important;
+  left:50%!important;top:50%!important;right:auto!important;bottom:auto!important;
+  transform:translate(-50%,-50%)!important;
+}
+.play-screen .game-frame canvas{display:block!important;object-fit:fill!important;image-rendering:auto!important}
+.play-screen .game-frame .game-hud{z-index:5;box-sizing:border-box;pointer-events:none}
+.play-screen .game-frame .game-hud button{pointer-events:auto}
+.play-screen .game-frame .game-overlay{z-index:6;box-sizing:border-box}
+@media(max-width:700px) and (orientation:portrait){
+  .play-screen .game-frame:after{
+    content:"Поверните телефон горизонтально для комфортной игры";
+    position:absolute;left:50%;top:calc(50% + min(28.125vw,50svh) + 24px);
+    transform:translateX(-50%);width:calc(100% - 32px);max-width:360px;
+    color:#e9e4ff;background:#21183fe8;border:1px solid #bba5ff66;
+    border-radius:12px;padding:10px 14px;text-align:center;font-size:12px;
+    line-height:1.4;z-index:7;pointer-events:none;
+  }
+}
+@media(max-width:700px) and (orientation:landscape){
+  .play-screen .screen-heading{padding:4px 10px!important}
+  .play-screen .screen-heading h2{font-size:12px!important}
+  .play-screen .game-frame .game-hud{top:50%!important}
+}
+
+
+/* v2.53.0 desktop correction: restore the original full-viewport game scale.
+   The canvas, HUD and overlays share the same full viewport; no 16:9 inner crop. */
+.play-screen .game-frame{inset:0!important;width:100vw!important;height:100vh!important;height:100dvh!important;height:100svh!important;overflow:hidden!important}
+.play-screen .game-frame canvas{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;left:0!important;top:0!important;right:0!important;bottom:0!important;transform:none!important;object-fit:fill!important}
+.play-screen .game-frame .game-hud{position:absolute!important;top:76px!important;left:18px!important;right:18px!important;bottom:auto!important;width:auto!important;height:auto!important;max-width:none!important;max-height:none!important;transform:none!important}
+.play-screen .game-frame .game-overlay{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;left:0!important;top:0!important;right:0!important;bottom:0!important;transform:none!important}
+@media(max-width:700px){.play-screen .game-frame .game-hud{top:calc(env(safe-area-inset-top) + 54px)!important;left:8px!important;right:8px!important}}
