@@ -1119,3 +1119,24 @@ html,body{scrollbar-width:none;-ms-overflow-style:none}html::-webkit-scrollbar,b
   .play-screen.active .screen-heading h2 { font-size: 12px !important; }
   .play-screen.active .game-frame .boss-hud { z-index: 7 !important; }
 }
+
+
+/* v1.3.5 — portrait-only mobile gameplay. Landscape touch devices show a
+   rotate hint; portrait uses a taller virtual world for a wider-feeling view. */
+@media (orientation: landscape) and (pointer: coarse) {
+  .play-screen.active::after {
+    content: 'Поверни телефон вертикально, чтобы играть';
+    position: fixed !important; inset: 0 !important; z-index: 10000 !important;
+    display: grid !important; place-items: center !important;
+    padding: 28px !important; box-sizing: border-box !important;
+    background: radial-gradient(ellipse at center, #39245f, #100d25) !important;
+    color: #fff !important; font: 700 20px/1.45 system-ui, sans-serif !important;
+    text-align: center !important;
+  }
+  .play-screen.active .game-frame,
+  .play-screen.active .screen-heading { visibility: hidden !important; }
+}
+@media (max-width: 700px) and (orientation: portrait) and (pointer: coarse) {
+  .play-screen.active .game-frame { width: 100vw !important; height: 100dvh !important; }
+  .play-screen.active .game-frame > canvas { object-fit: fill !important; }
+}
