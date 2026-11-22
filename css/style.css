@@ -1083,3 +1083,56 @@ html,body{scrollbar-width:none;-ms-overflow-style:none}html::-webkit-scrollbar,b
     top: calc(env(safe-area-inset-top) + 82px) !important;
   }
 }
+
+/* v1.3.3 — landscape phones/tablets: use the full browser viewport even when
+   Android reports a CSS width above 700px. Keep canvas and game controls in
+   the same full-screen coordinate space; never leave the desktop layout
+   visible beside the arena. */
+@media (orientation: landscape) and (max-height: 700px) and (pointer: coarse) {
+  html, body { width: 100%; min-height: 100%; margin: 0; overflow: hidden !important; }
+  .app-shell { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; }
+  .play-screen.active {
+    position: fixed !important; inset: 0 !important;
+    width: 100vw !important; height: 100vh !important;
+    height: 100dvh !important; height: 100svh !important;
+    margin: 0 !important; padding: 0 !important;
+    overflow: hidden !important; z-index: 999 !important;
+    background: #10152f !important;
+  }
+  .play-screen.active .game-frame {
+    position: absolute !important; inset: 0 !important;
+    width: 100vw !important; height: 100vh !important;
+    height: 100dvh !important; height: 100svh !important;
+    min-width: 0 !important; min-height: 0 !important;
+    margin: 0 !important; border: 0 !important; border-radius: 0 !important;
+    overflow: hidden !important;
+  }
+  .play-screen.active .game-frame > canvas {
+    position: absolute !important; inset: 0 !important;
+    display: block !important; width: 100% !important; height: 100% !important;
+    min-width: 0 !important; min-height: 0 !important;
+    max-width: none !important; max-height: none !important;
+    margin: 0 !important; transform: none !important;
+    object-fit: fill !important;
+  }
+  .play-screen.active .game-frame .game-hud {
+    position: absolute !important;
+    top: max(8px, env(safe-area-inset-top)) !important;
+    left: max(8px, env(safe-area-inset-left)) !important;
+    right: max(8px, env(safe-area-inset-right)) !important;
+    width: auto !important; max-width: none !important;
+    transform: none !important; z-index: 5 !important;
+  }
+  .play-screen.active .game-frame .game-overlay {
+    position: absolute !important; inset: 0 !important;
+    width: 100% !important; height: 100% !important;
+    transform: none !important; z-index: 6 !important;
+  }
+  .play-screen.active .screen-heading {
+    position: absolute !important; top: env(safe-area-inset-top) !important;
+    left: 8px !important; right: 8px !important;
+    padding: 2px 0 !important; z-index: 8 !important;
+  }
+  .play-screen.active .screen-heading h2 { font-size: 12px !important; }
+  .play-screen.active .game-frame .boss-hud { z-index: 7 !important; }
+}
