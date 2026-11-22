@@ -1033,39 +1033,22 @@ html,body{scrollbar-width:none;-ms-overflow-style:none}html::-webkit-scrollbar,b
   .play-screen.active .controls-hint { display: none !important; }
 }
 
-/* Portrait phones: keep the menus usable, but do not force the flight/boss
-   arena into a tall narrow viewport. Ask the player to rotate the device. */
+/* Portrait phones are supported: retain the arena and scale its virtual world
+   independently from browser zoom instead of blocking play with a rotate prompt. */
 @media (max-width: 700px) and (orientation: portrait) {
-  .play-screen.active::after {
-    content: "Для комфортной игры\A поверните телефон горизонтально";
-    white-space: pre-line;
-    position: fixed;
-    inset: 0;
-    z-index: 100;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 32px;
-    text-align: center;
-    line-height: 1.6;
-    font-size: clamp(18px, 5vw, 24px);
-    font-weight: 900;
-    color: #fffaff;
-    background:
-      radial-gradient(ellipse at 50% 35%, #51377e 0%, #241747 58%, #100c27 100%);
-    text-shadow: 0 2px 14px #0008;
-    pointer-events: auto;
-  }
-  .play-screen.active .game-frame > canvas {
-    visibility: hidden !important;
-  }
+  .play-screen.active::after { content: none !important; display: none !important; }
+  .play-screen.active .game-frame > canvas,
   .play-screen.active .game-frame .game-hud,
   .play-screen.active .game-frame .game-overlay,
   .play-screen.active .game-frame .boss-hud,
   .play-screen.active .game-frame .touch-hint,
-  .play-screen.active .screen-heading {
-    visibility: hidden !important;
+  .play-screen.active .screen-heading { visibility: visible !important; }
+  .play-screen.active .game-frame .game-hud {
+    top: calc(env(safe-area-inset-top) + 54px) !important;
+    left: max(8px, env(safe-area-inset-left)) !important;
+    right: max(8px, env(safe-area-inset-right)) !important;
   }
+  .play-screen.active .screen-heading { padding-top: calc(env(safe-area-inset-top) + 4px) !important; }
 }
 @media (max-width: 700px) and (orientation: landscape) {
   .play-screen.active .screen-heading {
